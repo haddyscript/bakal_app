@@ -3,14 +3,19 @@ import { View, Pressable, FlatList, Modal, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { setStatusBarStyle } from 'expo-status-bar';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import type { Exercise, WorkoutSet } from '../types';
 import { useRestTimer } from '../hooks/useRestTimer';
 import RestTimer from '../components/RestTimer';
+import { FONT_BOLD, FONT_SEMIBOLD } from '../theme/typography';
 
 const DEFAULT_REST_SECONDS = 90;
+const RED = '#e5484d';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ActiveWorkout'>;
 type Route = RouteProp<RootStackParamList, 'ActiveWorkout'>;
@@ -78,6 +83,13 @@ export default function ActiveWorkoutScreen() {
     }
   }, [routineId, loadRoutineExercises]);
 
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle('light');
+      return () => setStatusBarStyle('dark');
+    }, [])
+  );
+
   function addExerciseToWorkout(exercise: Exercise) {
     setPickerVisible(false);
     setBlocks((prev) =>
@@ -124,48 +136,70 @@ export default function ActiveWorkoutScreen() {
         keyExtractor={(item) => String(item.exercise.id)}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>{item.exercise.name}</Text>
-            {item.sets.map((s) => (
-              <Text key={s.id} style={styles.setRow}>
-                Set {s.set_order}: {s.weight} kg x {s.reps}
-              </Text>
-            ))}
-            <View style={styles.setForm}>
-              <TextInput
-                style={styles.setInput}
-                placeholder="Weight"
-                keyboardType="decimal-pad"
-                value={inputs[item.exercise.id]?.weight ?? ''}
-                onChangeText={(v) =>
-                  setInputs((prev) => ({
-                    ...prev,
-                    [item.exercise.id]: { weight: v, reps: prev[item.exercise.id]?.reps ?? '' },
-                  }))
-                }
-              />
-              <TextInput
-                style={styles.setInput}
-                placeholder="Reps"
-                keyboardType="number-pad"
-                value={inputs[item.exercise.id]?.reps ?? ''}
-                onChangeText={(v) =>
-                  setInputs((prev) => ({
-                    ...prev,
-                    [item.exercise.id]: { weight: prev[item.exercise.id]?.weight ?? '', reps: v },
-                  }))
-                }
-              />
-              <Pressable style={styles.setAddButton} onPress={() => addSet(item.exercise)}>
-                <Text style={styles.setAddButtonText}>Add Set</Text>
-              </Pressable>
-            </View>
+          <View style={styles.blockWrap}>
+            <BlurView intensity={30} tint="dark" style={styles.block}>
+              <View style={styles.blockHeader}>
+                <View style={styles.blockIconCircle}>
+                  <Ionicons name="barbell" size={16} color="#fff" />
+                </View>
+                <Text style={styles.blockTitle}>{item.exercise.name}</Text>
+              </View>
+
+              {item.sets.map((s) => (
+                <View key={s.id} style={styles.setRow}>
+                  <Text style={styles.setLabel}>Set {s.set_order}</Text>
+                  <Text style={styles.setValue}>
+                    {s.weight} kg <Text style={styles.setValueMuted}>×</Text> {s.reps}
+                  </Text>
+                </View>
+              ))}
+
+              <View style={styles.setForm}>
+                <TextInput
+                  style={styles.setInput}
+                  placeholder="Weight"
+                  placeholderTextColor="#777"
+                  keyboardType="decimal-pad"
+                  value={inputs[item.exercise.id]?.weight ?? ''}
+                  onChangeText={(v) =>
+                    setInputs((prev) => ({
+                      ...prev,
+                      [item.exercise.id]: { weight: v, reps: prev[item.exercise.id]?.reps ?? '' },
+                    }))
+                  }
+                />
+                <TextInput
+                  style={styles.setInput}
+                  placeholder="Reps"
+                  placeholderTextColor="#777"
+                  keyboardType="number-pad"
+                  value={inputs[item.exercise.id]?.reps ?? ''}
+                  onChangeText={(v) =>
+                    setInputs((prev) => ({
+                      ...prev,
+                      [item.exercise.id]: { weight: prev[item.exercise.id]?.weight ?? '', reps: v },
+                    }))
+                  }
+                />
+                <Pressable style={styles.setAddButton} onPress={() => addSet(item.exercise)}>
+                  <Ionicons name="add" size={20} color="#fff" />
+                </Pressable>
+              </View>
+            </BlurView>
           </View>
         )}
         ListFooterComponent={
           <Pressable style={styles.addExerciseButton} onPress={() => setPickerVisible(true)}>
-            <Text style={styles.addExerciseButtonText}>+ Add Exercise</Text>
+            <Ionicons name="add-circle-outline" size={18} color={RED} />
+            <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
           </Pressable>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Ionicons name="barbell-outline" size={36} color="#444" />
+            <Text style={styles.empty}>No exercises added yet</Text>
+            <Text style={styles.emptySubtitle}>Tap "Add Exercise" below to get started.</Text>
+          </View>
         }
       />
       <RestTimer
@@ -181,22 +215,35 @@ export default function ActiveWorkoutScreen() {
 
       <Modal visible={pickerVisible} animationType="slide" onRequestClose={() => setPickerVisible(false)}>
         <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Pick an exercise</Text>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Pick an exercise</Text>
+            <Pressable onPress={() => setPickerVisible(false)} hitSlop={8}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </Pressable>
+          </View>
           <FlatList
             data={library}
             keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={styles.modalList}
             renderItem={({ item }) => (
-              <Pressable style={styles.modalRow} onPress={() => addExerciseToWorkout(item)}>
-                <Text style={styles.modalRowText}>{item.name}</Text>
-              </Pressable>
+              <View style={styles.modalRowWrap}>
+                <BlurView intensity={30} tint="dark" style={styles.modalRow}>
+                  <Pressable style={styles.modalRowInner} onPress={() => addExerciseToWorkout(item)}>
+                    <View style={styles.modalRowIconCircle}>
+                      <Ionicons name="barbell" size={16} color="#fff" />
+                    </View>
+                    <View>
+                      <Text style={styles.modalRowText}>{item.name}</Text>
+                      {item.muscle_group ? <Text style={styles.modalRowSubtitle}>{item.muscle_group}</Text> : null}
+                    </View>
+                  </Pressable>
+                </BlurView>
+              </View>
             )}
             ListEmptyComponent={
               <Text style={styles.empty}>No exercises in your library yet. Add some from the Exercises tab.</Text>
             }
           />
-          <Pressable style={styles.modalClose} onPress={() => setPickerVisible(false)}>
-            <Text style={styles.modalCloseText}>Close</Text>
-          </Pressable>
         </View>
       </Modal>
     </View>
@@ -204,31 +251,113 @@ export default function ActiveWorkoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  list: { padding: 16, gap: 16 },
-  block: { gap: 6, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
-  blockTitle: { fontSize: 17, fontWeight: '700' },
-  setRow: { fontSize: 14, color: '#333' },
-  setForm: { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' },
-  setInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  setAddButton: { backgroundColor: '#111', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  setAddButtonText: { color: '#fff', fontWeight: '600' },
-  addExerciseButton: {
+  container: { flex: 1, backgroundColor: '#0d0d0d' },
+  list: { padding: 20, gap: 12, paddingBottom: 12 },
+  blockWrap: {
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#111',
-    borderStyle: 'dashed',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
   },
-  addExerciseButtonText: { color: '#111', fontWeight: '600' },
-  finishButton: { backgroundColor: '#111', margin: 16, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  finishButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  modalContainer: { flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: '#fff' },
-  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-  modalRow: { paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
-  modalRowText: { fontSize: 16 },
-  modalClose: { paddingVertical: 16, alignItems: 'center' },
-  modalCloseText: { color: '#111', fontWeight: '600' },
-  empty: { textAlign: 'center', color: '#999', marginTop: 32 },
+  block: { backgroundColor: 'rgba(255,255,255,0.05)', padding: 16 },
+  blockHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  blockIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  blockTitle: { fontSize: 16, fontFamily: FONT_SEMIBOLD, color: '#fff' },
+  setRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  setLabel: { color: '#999', fontSize: 13 },
+  setValue: { color: '#fff', fontSize: 13, fontFamily: FONT_SEMIBOLD },
+  setValueMuted: { color: '#666' },
+  setForm: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
+  setInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  setAddButton: {
+    backgroundColor: RED,
+    borderRadius: 8,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addExerciseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(229,72,77,0.5)',
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  addExerciseButtonText: { color: RED, fontFamily: FONT_SEMIBOLD },
+  finishButton: {
+    backgroundColor: RED,
+    margin: 20,
+    marginTop: 8,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  finishButtonText: { color: '#fff', fontSize: 16, fontFamily: FONT_BOLD },
+
+  emptyWrap: { alignItems: 'center', marginTop: 40, gap: 8 },
+  empty: { textAlign: 'center', color: '#999', fontSize: 15, fontFamily: FONT_SEMIBOLD, marginTop: 4 },
+  emptySubtitle: { textAlign: 'center', color: '#666', fontSize: 13 },
+
+  modalContainer: { flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: '#0d0d0d' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontFamily: FONT_BOLD, color: '#fff' },
+  modalList: { paddingBottom: 24 },
+  modalRowWrap: {
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+  },
+  modalRow: { backgroundColor: 'rgba(255,255,255,0.05)' },
+  modalRowInner: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14 },
+  modalRowIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  modalRowText: { fontSize: 15, fontFamily: FONT_SEMIBOLD, color: '#fff' },
+  modalRowSubtitle: { fontSize: 12, color: '#999', marginTop: 2 },
 });
