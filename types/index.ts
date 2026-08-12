@@ -9,6 +9,7 @@ export interface Session {
   id: number;
   date: string;
   duration_seconds: number | null;
+  name: string | null;
   notes: string | null;
 }
 

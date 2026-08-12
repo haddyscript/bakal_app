@@ -57,8 +57,15 @@ export default function HomeScreen() {
   }
 
   async function startRoutine(routine: Routine) {
-    const result = await db.runAsync("INSERT INTO sessions (date) VALUES (datetime('now'))");
-    navigation.navigate('ActiveWorkout', { sessionId: result.lastInsertRowId, routineId: routine.id });
+    const result = await db.runAsync(
+      "INSERT INTO sessions (date, name) VALUES (datetime('now'), ?)",
+      routine.name
+    );
+    navigation.navigate('ActiveWorkout', {
+      sessionId: result.lastInsertRowId,
+      routineId: routine.id,
+      initialName: routine.name,
+    });
   }
 
   function toggleExercise(id: number) {

@@ -26,6 +26,7 @@ interface ExerciseGroup {
 interface SessionInfo {
   date: string;
   duration_seconds: number | null;
+  name: string | null;
 }
 
 type Route = RouteProp<RootStackParamList, 'SessionDetail'>;
@@ -42,12 +43,12 @@ export default function SessionDetailScreen() {
   useEffect(() => {
     (async () => {
       const sessionRow = await db.getFirstAsync<SessionInfo>(
-        'SELECT date, duration_seconds FROM sessions WHERE id = ?',
+        'SELECT date, duration_seconds, name FROM sessions WHERE id = ?',
         sessionId
       );
       setSession(sessionRow ?? null);
 
-      const setRows = await db.getAllAsync<SetRow>(
+      const joinedSets = await db.getAllAsync<SetRow>(
         `SELECT sets.id as set_id, sets.weight, sets.reps, sets.set_order, exercises.name as exercise_name
          FROM sets
          JOIN exercises ON exercises.id = sets.exercise_id
@@ -55,7 +56,7 @@ export default function SessionDetailScreen() {
          ORDER BY exercises.name ASC, sets.set_order ASC`,
         sessionId
       );
-      setRows(setRows);
+      setRows(joinedSets);
     })();
   }, [db, sessionId]);
 
@@ -92,9 +93,12 @@ export default function SessionDetailScreen() {
               style={styles.summarySheen}
             />
             <Text style={styles.summaryDate}>
-              {date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+              {session?.name || date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
             </Text>
             <Text style={styles.summaryTime}>
+              {session?.name
+                ? `${date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} · `
+                : ''}
               {date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
             </Text>
 

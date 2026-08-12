@@ -29,13 +29,18 @@ export default function ActiveWorkoutScreen() {
   const db = useSQLiteContext();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { sessionId, routineId } = route.params;
+  const { sessionId, routineId, initialName } = route.params;
 
   const [library, setLibrary] = useState<Exercise[]>([]);
   const [blocks, setBlocks] = useState<ExerciseBlock[]>([]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [inputs, setInputs] = useState<Record<number, { weight: string; reps: string }>>({});
+  const [workoutName, setWorkoutName] = useState(initialName ?? '');
   const restTimer = useRestTimer();
+
+  async function saveWorkoutName() {
+    await db.runAsync('UPDATE sessions SET name = ? WHERE id = ?', workoutName.trim() || null, sessionId);
+  }
 
   const loadLibrary = useCallback(async () => {
     const rows = await db.getAllAsync<Exercise>('SELECT * FROM exercises ORDER BY name ASC');
@@ -122,6 +127,7 @@ export default function ActiveWorkoutScreen() {
 
   async function finishWorkout() {
     await restTimer.stop();
+    await saveWorkoutName();
     await db.runAsync(
       "UPDATE sessions SET duration_seconds = CAST((julianday('now') - julianday(date)) * 86400 AS INTEGER) WHERE id = ?",
       sessionId
@@ -131,6 +137,17 @@ export default function ActiveWorkoutScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.nameField}>
+        <Ionicons name="pencil" size={16} color="#666" />
+        <TextInput
+          style={styles.nameInput}
+          placeholder="Name this workout (e.g. Chest and Bicep Day)"
+          placeholderTextColor="#666"
+          value={workoutName}
+          onChangeText={setWorkoutName}
+          onEndEditing={saveWorkoutName}
+        />
+      </View>
       <FlatList
         data={blocks}
         keyExtractor={(item) => String(item.exercise.id)}
@@ -252,6 +269,17 @@ export default function ActiveWorkoutScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0d0d0d' },
+  nameField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.14)',
+  },
+  nameInput: { flex: 1, color: '#fff', fontSize: 17, fontFamily: FONT_SEMIBOLD },
   list: { padding: 20, gap: 12, paddingBottom: 12 },
   blockWrap: {
     borderRadius: 18,

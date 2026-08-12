@@ -17,6 +17,7 @@ interface SessionRow {
   id: number;
   date: string;
   duration_seconds: number | null;
+  name: string | null;
   set_count: number;
   exercise_count: number;
 }
@@ -32,7 +33,7 @@ export default function HistoryScreen() {
     useCallback(() => {
       let active = true;
       db.getAllAsync<SessionRow>(
-        `SELECT sessions.id, sessions.date, sessions.duration_seconds,
+        `SELECT sessions.id, sessions.date, sessions.duration_seconds, sessions.name,
                 COUNT(sets.id) as set_count,
                 COUNT(DISTINCT sets.exercise_id) as exercise_count
          FROM sessions
@@ -83,10 +84,21 @@ export default function HistoryScreen() {
                 </View>
 
                 <View style={styles.cardBody}>
-                  <Text style={styles.cardDate}>{dateLabel}</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {timeLabel} · {statsLabel}
+                  <Text style={styles.cardDate} numberOfLines={1}>
+                    {item.name || dateLabel}
                   </Text>
+                  {item.name ? (
+                    <>
+                      <Text style={styles.cardSubtitle}>
+                        {dateLabel} · {timeLabel}
+                      </Text>
+                      <Text style={styles.cardSubtitle}>{statsLabel}</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.cardSubtitle}>
+                      {timeLabel} · {statsLabel}
+                    </Text>
+                  )}
                 </View>
 
                 <View style={styles.cardTrailing}>
