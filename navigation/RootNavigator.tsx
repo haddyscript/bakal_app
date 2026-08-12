@@ -1,5 +1,7 @@
+import { StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 
 import HomeScreen from '../screens/HomeScreen';
 import HistoryScreen from '../screens/HistoryScreen';
@@ -21,13 +23,33 @@ export type TabParamList = {
   Library: undefined;
 };
 
+const RED = '#e5484d';
+
+const TAB_ICONS: Record<keyof TabParamList, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
+  Home: { active: 'home', inactive: 'home-outline' },
+  History: { active: 'time', inactive: 'time-outline' },
+  Progress: { active: 'stats-chart', inactive: 'stats-chart-outline' },
+  Library: { active: 'barbell', inactive: 'barbell-outline' },
+};
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 function Tabs() {
   return (
-    <Tab.Navigator>
-      <Tab.Screen name="Home" component={HomeScreen} />
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarActiveTintColor: RED,
+        tabBarInactiveTintColor: '#8a8a8a',
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarIcon: ({ color, size, focused }) => {
+          const icon = TAB_ICONS[route.name as keyof TabParamList];
+          return <Ionicons name={focused ? icon.active : icon.inactive} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <Tab.Screen name="History" component={HistoryScreen} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
       <Tab.Screen name="Library" component={ExerciseLibraryScreen} options={{ title: 'Exercises' }} />
@@ -44,3 +66,12 @@ export default function RootNavigator() {
     </Stack.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    backgroundColor: '#111214',
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  tabBarLabel: { fontSize: 11, fontWeight: '600' },
+});

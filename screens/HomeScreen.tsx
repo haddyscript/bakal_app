@@ -1,16 +1,26 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TextInput, Pressable, FlatList, Modal, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, FlatList, Modal, Image, ScrollView, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { LineChart } from 'react-native-gifted-charts';
+import { setStatusBarStyle } from 'expo-status-bar';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import type { Exercise, Routine } from '../types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
+// Decorative only — BAKAL has no wearable/health sensor data. This mirrors
+// the reference dashboard's look with static placeholder values.
+const PULSE_CHART_DATA = [{ value: 30 }, { value: 65 }, { value: 40 }, { value: 85 }, { value: 50 }, { value: 78 }];
+
 export default function HomeScreen() {
   const db = useSQLiteContext();
   const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [library, setLibrary] = useState<Exercise[]>([]);
@@ -32,6 +42,8 @@ export default function HomeScreen() {
     useCallback(() => {
       loadRoutines();
       loadLibrary();
+      setStatusBarStyle('light');
+      return () => setStatusBarStyle('dark');
     }, [loadRoutines, loadLibrary])
   );
 
@@ -78,37 +90,140 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={routines}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>BAKAL</Text>
-            <Pressable style={styles.button} onPress={startWorkout}>
-              <Text style={styles.buttonText}>Start Workout</Text>
-            </Pressable>
-            <View style={styles.routinesHeaderRow}>
-              <Text style={styles.sectionTitle}>Routines</Text>
-              <Pressable onPress={openBuilder}>
-                <Text style={styles.newRoutineLink}>+ New Routine</Text>
-              </Pressable>
+    <View style={styles.root}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={[styles.hero, { paddingTop: insets.top + 16 }]}>
+          <View style={styles.heroImageClip}>
+            <Image
+              source={require('../assets/images/mirror-shot.png')}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+            <LinearGradient
+              colors={['#0d0d0d', 'rgba(13,13,13,0)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.heroImageTopFade}
+            />
+          </View>
+          <LinearGradient
+            colors={['#0d0d0d', 'rgba(13,13,13,0)']}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.heroImageFade}
+          />
+
+          <View style={styles.heroText}>
+            <Text style={styles.headline}>Stay Healthy</Text>
+            <Text style={styles.headline}>Keep Body</Text>
+            <View style={styles.strongPill}>
+              <Text style={styles.strongPillText}>Strong</Text>
             </View>
           </View>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.routineRow}>
-            <Pressable style={styles.routineInfo} onPress={() => startRoutine(item)}>
-              <Text style={styles.routineName}>{item.name}</Text>
-            </Pressable>
-            <Pressable onPress={() => deleteRoutine(item)}>
-              <Text style={styles.deleteLink}>Delete</Text>
+
+          <View style={styles.statPills}>
+            <View style={styles.statPill}>
+              <View style={styles.statIconCircle}>
+                <Ionicons name="flame" size={16} color="#fff" />
+              </View>
+              <Text style={styles.statPillText}>Kcal</Text>
+            </View>
+            <View style={[styles.statPill, styles.statPillIndent]}>
+              <View style={styles.statIconCircle}>
+                <Ionicons name="heart" size={16} color="#fff" />
+              </View>
+              <Text style={styles.statPillText}>bpm</Text>
+            </View>
+            <View style={styles.statPill}>
+              <View style={styles.statIconCircle}>
+                <Ionicons name="pulse" size={16} color="#fff" />
+              </View>
+              <Text style={styles.statPillText}>Pulse</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.pulseCard}>
+          <View style={styles.pulseCardTop}>
+            <Text style={styles.pulseCardLabel}>Pulse Rate</Text>
+            <View style={styles.pulseCardIcons}>
+              <View style={styles.pulseIconCircle}>
+                <Ionicons name="barbell-outline" size={16} color="#fff" />
+              </View>
+              <View style={styles.pulseIconCircle}>
+                <Ionicons name="options-outline" size={16} color="#fff" />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.pulseValueRow}>
+            <Ionicons name="heart" size={22} color="#e5484d" />
+            <Text style={styles.pulseValue}>110</Text>
+          </View>
+
+          <View style={styles.pulseNote}>
+            <Ionicons name="checkmark-circle" size={14} color="#e5484d" />
+            <Text style={styles.pulseNoteText}>
+              Need to keep <Text style={styles.pulseNoteAccent}>balance</Text>
+            </Text>
+          </View>
+
+          <View style={styles.chartWrap}>
+            <View style={styles.hrvPill}>
+              <Text style={styles.hrvPillText}>HRV 54</Text>
+            </View>
+            <LineChart
+              data={PULSE_CHART_DATA}
+              thickness={2}
+              color="#e5484d"
+              dataPointsColor="#e5484d"
+              dataPointsRadius={3}
+              curved
+              areaChart
+              startFillColor="rgba(229,72,77,0.25)"
+              endFillColor="rgba(229,72,77,0)"
+              startOpacity={0.5}
+              endOpacity={0}
+              hideRules
+              hideYAxisText
+              hideAxesAndRules
+              height={90}
+              width={260}
+              spacing={48}
+              initialSpacing={8}
+              disableScroll
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Pressable style={styles.startButton} onPress={startWorkout}>
+            <Text style={styles.startButtonText}>Start Workout</Text>
+          </Pressable>
+
+          <View style={styles.routinesHeaderRow}>
+            <Text style={styles.sectionTitle}>Routines</Text>
+            <Pressable onPress={openBuilder}>
+              <Text style={styles.newRoutineLink}>+ New Routine</Text>
             </Pressable>
           </View>
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>No routines yet. Create one to start workouts faster.</Text>}
-      />
+
+          {routines.length === 0 ? (
+            <Text style={styles.empty}>No routines yet. Create one to start workouts faster.</Text>
+          ) : (
+            routines.map((item) => (
+              <View key={item.id} style={styles.routineRow}>
+                <Pressable style={styles.routineInfo} onPress={() => startRoutine(item)}>
+                  <Text style={styles.routineName}>{item.name}</Text>
+                </Pressable>
+                <Pressable onPress={() => deleteRoutine(item)}>
+                  <Text style={styles.deleteLink}>Delete</Text>
+                </Pressable>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
 
       <Modal visible={builderVisible} animationType="slide" onRequestClose={() => setBuilderVisible(false)}>
         <View style={styles.modalContainer}>
@@ -116,6 +231,7 @@ export default function HomeScreen() {
           <TextInput
             style={styles.input}
             placeholder="Routine name (e.g. Push Day)"
+            placeholderTextColor="#777"
             value={routineName}
             onChangeText={setRoutineName}
           />
@@ -150,51 +266,157 @@ export default function HomeScreen() {
   );
 }
 
+const RED = '#e5484d';
+const CARD_BG = '#141414';
+const BORDER = 'rgba(255,255,255,0.08)';
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  list: { padding: 16, gap: 8 },
-  header: { alignItems: 'center', gap: 16, marginBottom: 8 },
-  title: { fontSize: 32, fontWeight: '700' },
-  button: {
-    backgroundColor: '#111',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignSelf: 'stretch',
-    alignItems: 'center',
+  root: { flex: 1, backgroundColor: '#0d0d0d' },
+  scrollContent: { paddingBottom: 60 },
+
+  hero: { position: 'relative', minHeight: 460, paddingHorizontal: 24, overflow: 'hidden' },
+  heroImageClip: {
+    position: 'absolute',
+    right: -40,
+    bottom: 0,
+    width: '66%',
+    height: 340,
+    borderTopLeftRadius: 90,
+    overflow: 'hidden',
   },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  // Rendered taller than the clip box and shifted up, so the visible window
+  // favors torso/shoulders over the face and phone at the top of the photo.
+  heroImage: { width: '100%', height: 430, marginTop: -45 },
+  // Fades the clip's own top edge into the background so its real (non-transparent)
+  // photo background doesn't read as a hard-edged rectangle against the hero bg.
+  heroImageTopFade: { position: 'absolute', top: 0, left: 0, right: 0, height: 50 },
+  heroImageFade: { position: 'absolute', right: '34%', bottom: 0, width: 130, height: 340 },
+
+  heroText: { gap: 2 },
+  headline: { fontSize: 34, fontWeight: '800', color: '#fff', lineHeight: 38 },
+  strongPill: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: RED,
+    paddingHorizontal: 22,
+    paddingVertical: 8,
+    borderRadius: 30,
+  },
+  strongPillText: { fontSize: 30, fontWeight: '800', color: '#fff' },
+
+  statPills: { marginTop: 44, gap: 18 },
+  statPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#161616',
+    borderRadius: 30,
+    paddingVertical: 6,
+    paddingRight: 20,
+    paddingLeft: 6,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  statPillIndent: { marginLeft: 28 },
+  statIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#2a2a2a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  statPillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+
+  pulseCard: {
+    marginTop: -36,
+    marginHorizontal: 20,
+    backgroundColor: CARD_BG,
+    borderRadius: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  pulseCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  pulseCardLabel: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  pulseCardIcons: { flexDirection: 'row', gap: 10 },
+  pulseIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1f1f1f',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  pulseValueRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
+  pulseValue: { color: '#fff', fontSize: 34, fontWeight: '800' },
+  pulseNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  pulseNoteText: { color: '#999', fontSize: 13 },
+  pulseNoteAccent: { color: RED, fontWeight: '700' },
+
+  chartWrap: { marginTop: 20, alignItems: 'center', position: 'relative' },
+  hrvPill: {
+    position: 'absolute',
+    top: -6,
+    alignSelf: 'center',
+    zIndex: 2,
+    backgroundColor: '#1f1f1f',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  hrvPillText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+
+  section: { paddingHorizontal: 20, paddingTop: 32, gap: 4 },
+  startButton: { backgroundColor: RED, paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+  startButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+
   routinesHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    alignSelf: 'stretch',
-    marginTop: 12,
+    marginTop: 28,
+    marginBottom: 4,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#333' },
-  newRoutineLink: { color: '#111', fontWeight: '600' },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  newRoutineLink: { color: RED, fontWeight: '600' },
   routineRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    borderBottomColor: BORDER,
   },
   routineInfo: { flex: 1 },
-  routineName: { fontSize: 16, fontWeight: '600' },
-  deleteLink: { color: '#c33', fontSize: 13 },
-  empty: { textAlign: 'center', color: '#999', marginTop: 16 },
-  modalContainer: { flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: '#fff' },
-  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 16 },
-  modalSubtitle: { fontSize: 13, fontWeight: '600', color: '#666', marginBottom: 8, textTransform: 'uppercase' },
-  modalRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
-  modalRowText: { fontSize: 16, color: '#333' },
-  modalRowTextSelected: { color: '#111', fontWeight: '700' },
+  routineName: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  deleteLink: { color: RED, fontSize: 13 },
+  empty: { textAlign: 'center', color: '#777', marginTop: 12 },
+
+  modalContainer: { flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: '#0d0d0d' },
+  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16, color: '#fff' },
+  input: {
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+    color: '#fff',
+    backgroundColor: '#161616',
+  },
+  modalSubtitle: { fontSize: 13, fontWeight: '600', color: '#999', marginBottom: 8, textTransform: 'uppercase' },
+  modalRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  modalRowText: { fontSize: 16, color: '#ccc' },
+  modalRowTextSelected: { color: '#fff', fontWeight: '700' },
   modalActions: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 24 },
-  modalCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#ccc' },
-  modalCancelText: { color: '#333', fontWeight: '600' },
-  modalSave: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', backgroundColor: '#111' },
+  modalCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
+  modalCancelText: { color: '#ccc', fontWeight: '600' },
+  modalSave: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', backgroundColor: RED },
   modalSaveText: { color: '#fff', fontWeight: '700' },
 });
