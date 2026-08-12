@@ -1,0 +1,23 @@
+export interface Exercise {
+  id: number;
+  name: string;
+  muscle_group: string | null;
+  created_at: string;
+}
+
+export interface Session {
+  id: number;
+  date: string;
+  duration_seconds: number | null;
+  notes: string | null;
+}
+
+export interface WorkoutSet {
+  id: number;
+  session_id: number;
+  exercise_id: number;
+  weight: number;
+  reps: number;
+  set_order: number;
+  rest_seconds: number | null;
+}
