@@ -50,7 +50,7 @@ function Tabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="History" component={HistoryScreen} />
+      <Tab.Screen name="History" component={HistoryScreen} options={{ headerStyle: styles.darkHeader, headerTintColor: '#fff', headerShadowVisible: false }} />
       <Tab.Screen name="Progress" component={ProgressScreen} />
       <Tab.Screen name="Library" component={ExerciseLibraryScreen} options={{ title: 'Exercises' }} />
     </Tab.Navigator>
@@ -74,4 +74,5 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   tabBarLabel: { fontSize: 11, fontWeight: '600' },
+  darkHeader: { backgroundColor: '#0d0d0d' },
 });

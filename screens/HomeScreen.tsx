@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-gifted-charts';
 import { setStatusBarStyle } from 'expo-status-bar';
@@ -122,24 +123,24 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.statPills}>
-            <View style={styles.statPill}>
+            <BlurView intensity={35} tint="dark" style={styles.statPill}>
               <View style={styles.statIconCircle}>
                 <Ionicons name="flame" size={16} color="#fff" />
               </View>
               <Text style={styles.statPillText}>Kcal</Text>
-            </View>
-            <View style={[styles.statPill, styles.statPillIndent]}>
+            </BlurView>
+            <BlurView intensity={35} tint="dark" style={[styles.statPill, styles.statPillIndent]}>
               <View style={styles.statIconCircle}>
                 <Ionicons name="heart" size={16} color="#fff" />
               </View>
               <Text style={styles.statPillText}>bpm</Text>
-            </View>
-            <View style={styles.statPill}>
+            </BlurView>
+            <BlurView intensity={35} tint="dark" style={styles.statPill}>
               <View style={styles.statIconCircle}>
                 <Ionicons name="pulse" size={16} color="#fff" />
               </View>
               <Text style={styles.statPillText}>Pulse</Text>
-            </View>
+            </BlurView>
           </View>
         </View>
 
@@ -149,7 +150,14 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.pulseCard}>
+        <View style={styles.pulseCardWrap}>
+          <BlurView intensity={40} tint="dark" style={styles.pulseCard}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0.6, y: 1 }}
+              style={styles.pulseCardSheen}
+            />
           <View style={styles.pulseCardTop}>
             <Text style={styles.pulseCardLabel}>Pulse Rate</Text>
             <View style={styles.pulseCardIcons}>
@@ -200,6 +208,7 @@ export default function HomeScreen() {
               disableScroll
             />
           </View>
+          </BlurView>
         </View>
 
         <View style={styles.section}>
@@ -214,13 +223,18 @@ export default function HomeScreen() {
             <Text style={styles.empty}>No routines yet. Create one to start workouts faster.</Text>
           ) : (
             routines.map((item) => (
-              <View key={item.id} style={styles.routineRow}>
-                <Pressable style={styles.routineInfo} onPress={() => startRoutine(item)}>
-                  <Text style={styles.routineName}>{item.name}</Text>
-                </Pressable>
-                <Pressable onPress={() => deleteRoutine(item)}>
-                  <Text style={styles.deleteLink}>Delete</Text>
-                </Pressable>
+              <View key={item.id} style={styles.routineRowWrap}>
+                <BlurView intensity={30} tint="dark" style={styles.routineRow}>
+                  <Pressable style={styles.routineInfo} onPress={() => startRoutine(item)}>
+                    <View style={styles.routineIconCircle}>
+                      <Ionicons name="barbell" size={16} color="#fff" />
+                    </View>
+                    <Text style={styles.routineName}>{item.name}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => deleteRoutine(item)} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color="#888" />
+                  </Pressable>
+                </BlurView>
               </View>
             ))
           )}
@@ -269,7 +283,6 @@ export default function HomeScreen() {
 }
 
 const RED = '#e5484d';
-const CARD_BG = '#141414';
 const BORDER = 'rgba(255,255,255,0.08)';
 
 const styles = StyleSheet.create({
@@ -309,37 +322,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#161616',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 30,
     paddingVertical: 6,
     paddingRight: 20,
     paddingLeft: 6,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(255,255,255,0.16)',
+    overflow: 'hidden',
   },
   statPillIndent: { marginLeft: 28 },
   statIconCircle: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
   statPillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 
   startButtonWrap: { marginTop: -36, marginHorizontal: 20 },
 
-  pulseCard: {
+  pulseCardWrap: {
     marginTop: 16,
     marginHorizontal: 20,
-    backgroundColor: CARD_BG,
     borderRadius: 28,
-    padding: 20,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(255,255,255,0.14)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 5,
   },
+  pulseCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 20,
+  },
+  pulseCardSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '55%' },
   pulseCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pulseCardLabel: { color: '#fff', fontSize: 15, fontWeight: '600' },
   pulseCardIcons: { flexDirection: 'row', gap: 10 },
@@ -347,11 +372,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#1f1f1f',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
   pulseValueRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
   pulseValue: { color: '#fff', fontSize: 34, fontWeight: '800' },
@@ -365,12 +390,12 @@ const styles = StyleSheet.create({
     top: -6,
     alignSelf: 'center',
     zIndex: 2,
-    backgroundColor: '#1f1f1f',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
   hrvPillText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 
@@ -397,17 +422,34 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
   newRoutineLink: { color: RED, fontWeight: '600' },
+  routineRowWrap: {
+    borderRadius: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+  },
   routineRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: BORDER,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  routineInfo: { flex: 1 },
+  routineInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  routineIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
   routineName: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  deleteLink: { color: RED, fontSize: 13 },
   empty: { textAlign: 'center', color: '#777', marginTop: 12 },
 
   modalContainer: { flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: '#0d0d0d' },
