@@ -143,6 +143,12 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        <View style={styles.startButtonWrap}>
+          <Pressable style={styles.startButton} onPress={startWorkout}>
+            <Text style={styles.startButtonText}>Start Workout</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.pulseCard}>
           <View style={styles.pulseCardTop}>
             <Text style={styles.pulseCardLabel}>Pulse Rate</Text>
@@ -197,10 +203,6 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.section}>
-          <Pressable style={styles.startButton} onPress={startWorkout}>
-            <Text style={styles.startButtonText}>Start Workout</Text>
-          </Pressable>
-
           <View style={styles.routinesHeaderRow}>
             <Text style={styles.sectionTitle}>Routines</Text>
             <Pressable onPress={openBuilder}>
@@ -327,8 +329,10 @@ const styles = StyleSheet.create({
   },
   statPillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 
+  startButtonWrap: { marginTop: -36, marginHorizontal: 20 },
+
   pulseCard: {
-    marginTop: -36,
+    marginTop: 16,
     marginHorizontal: 20,
     backgroundColor: CARD_BG,
     borderRadius: 28,
@@ -370,15 +374,25 @@ const styles = StyleSheet.create({
   },
   hrvPillText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 
-  section: { paddingHorizontal: 20, paddingTop: 32, gap: 4 },
-  startButton: { backgroundColor: RED, paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+  section: { paddingHorizontal: 20, paddingTop: 8, gap: 4 },
+  startButton: {
+    backgroundColor: RED,
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   startButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 
   routinesHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 28,
+    marginTop: 8,
     marginBottom: 4,
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
