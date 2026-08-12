@@ -1,4 +1,5 @@
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import Text from './Text';
 
 interface Props {
   authenticating: boolean;

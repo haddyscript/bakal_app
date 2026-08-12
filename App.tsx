@@ -5,11 +5,13 @@ import { SQLiteProvider } from 'expo-sqlite';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import { useFonts } from 'expo-font';
 
 import RootNavigator from './navigation/RootNavigator';
 import { DATABASE_NAME, migrateDbIfNeeded } from './db/database';
 import { useAppLock } from './hooks/useAppLock';
 import LockScreen from './components/LockScreen';
+import { FONT_ASSETS } from './theme/typography';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -25,7 +27,12 @@ export default function App() {
     Notifications.requestPermissionsAsync();
   }, []);
 
+  const [fontsLoaded] = useFonts(FONT_ASSETS);
   const { unlocked, authenticating, retry } = useAppLock();
+
+  if (!fontsLoaded) {
+    return <Loading />;
+  }
 
   return (
     <SafeAreaProvider>

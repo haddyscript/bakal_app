@@ -51,8 +51,12 @@ function Tabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ headerStyle: styles.darkHeader, headerTintColor: '#fff', headerShadowVisible: false }} />
-      <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="Library" component={ExerciseLibraryScreen} options={{ title: 'Exercises' }} />
+      <Tab.Screen name="Progress" component={ProgressScreen} options={{ headerStyle: styles.darkHeader, headerTintColor: '#fff', headerShadowVisible: false }} />
+      <Tab.Screen
+        name="Library"
+        component={ExerciseLibraryScreen}
+        options={{ title: 'Exercises', headerStyle: styles.darkHeader, headerTintColor: '#fff', headerShadowVisible: false }}
+      />
     </Tab.Navigator>
   );
 }

@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
-import { View, Text, TextInput, Pressable, FlatList, Modal, Image, ScrollView, StyleSheet } from 'react-native';
+import { View, Pressable, FlatList, Modal, Image, ScrollView, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
+import Text from '../components/Text';
+import TextInput from '../components/TextInput';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +13,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import { setStatusBarStyle } from 'expo-status-bar';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import type { Exercise, Routine } from '../types';
+import { FONT_BOLD } from '../theme/typography';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -306,7 +309,7 @@ const styles = StyleSheet.create({
   heroImageFade: { position: 'absolute', right: '34%', bottom: 0, width: 130, height: 360 },
 
   heroText: { gap: 2 },
-  headline: { fontSize: 34, fontWeight: '800', color: '#fff', lineHeight: 38 },
+  headline: { fontSize: 42, fontFamily: FONT_BOLD, color: '#fff', lineHeight: 46 },
   strongPill: {
     marginTop: 8,
     alignSelf: 'flex-start',
@@ -315,7 +318,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 30,
   },
-  strongPillText: { fontSize: 30, fontWeight: '800', color: '#fff' },
+  strongPillText: { fontSize: 36, fontFamily: FONT_BOLD, color: '#fff' },
 
   statPills: { marginTop: 44, gap: 18 },
   statPill: {

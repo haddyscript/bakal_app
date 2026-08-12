@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, FlatList, Modal, StyleSheet } from 'react-native';
+import { View, Pressable, FlatList, Modal, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
+import Text from '../components/Text';
+import TextInput from '../components/TextInput';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
