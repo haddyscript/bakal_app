@@ -126,24 +126,48 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.statPills}>
-            <BlurView intensity={35} tint="dark" style={styles.statPill}>
-              <View style={styles.statIconCircle}>
-                <Ionicons name="flame" size={16} color="#fff" />
-              </View>
-              <Text style={styles.statPillText}>Kcal</Text>
-            </BlurView>
-            <BlurView intensity={35} tint="dark" style={[styles.statPill, styles.statPillIndent]}>
-              <View style={styles.statIconCircle}>
-                <Ionicons name="heart" size={16} color="#fff" />
-              </View>
-              <Text style={styles.statPillText}>bpm</Text>
-            </BlurView>
-            <BlurView intensity={35} tint="dark" style={styles.statPill}>
-              <View style={styles.statIconCircle}>
-                <Ionicons name="pulse" size={16} color="#fff" />
-              </View>
-              <Text style={styles.statPillText}>Pulse</Text>
-            </BlurView>
+            <View style={styles.statPillWrap}>
+              <BlurView intensity={45} tint="dark" style={styles.statPill}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0.7, y: 1 }}
+                  style={styles.statPillSheen}
+                />
+                <View style={styles.statIconCircle}>
+                  <Ionicons name="flame" size={16} color="#fff" />
+                </View>
+                <Text style={styles.statPillText}>Kcal</Text>
+              </BlurView>
+            </View>
+            <View style={[styles.statPillWrap, styles.statPillIndent]}>
+              <BlurView intensity={45} tint="dark" style={styles.statPill}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0.7, y: 1 }}
+                  style={styles.statPillSheen}
+                />
+                <View style={styles.statIconCircle}>
+                  <Ionicons name="heart" size={16} color="#fff" />
+                </View>
+                <Text style={styles.statPillText}>bpm</Text>
+              </BlurView>
+            </View>
+            <View style={styles.statPillWrap}>
+              <BlurView intensity={45} tint="dark" style={styles.statPill}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0.7, y: 1 }}
+                  style={styles.statPillSheen}
+                />
+                <View style={styles.statIconCircle}>
+                  <Ionicons name="pulse" size={16} color="#fff" />
+                </View>
+                <Text style={styles.statPillText}>Pulse</Text>
+              </BlurView>
+            </View>
           </View>
         </View>
 
@@ -321,20 +345,29 @@ const styles = StyleSheet.create({
   strongPillText: { fontSize: 36, fontFamily: FONT_BOLD, color: '#fff' },
 
   statPills: { marginTop: 44, gap: 18 },
+  statPillWrap: {
+    alignSelf: 'flex-start',
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  statPillIndent: { marginLeft: 28 },
   statPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 30,
     paddingVertical: 6,
     paddingRight: 20,
     paddingLeft: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(255,255,255,0.18)',
     overflow: 'hidden',
   },
-  statPillIndent: { marginLeft: 28 },
+  statPillSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '65%' },
   statIconCircle: {
     width: 34,
     height: 34,
