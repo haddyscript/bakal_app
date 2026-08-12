@@ -62,7 +62,11 @@ export default function RootNavigator() {
     <Stack.Navigator>
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
       <Stack.Screen name="ActiveWorkout" component={ActiveWorkoutScreen} options={{ title: 'Workout' }} />
-      <Stack.Screen name="SessionDetail" component={SessionDetailScreen} options={{ title: 'Session' }} />
+      <Stack.Screen
+        name="SessionDetail"
+        component={SessionDetailScreen}
+        options={{ title: 'Session', headerStyle: styles.darkHeader, headerTintColor: '#fff', headerShadowVisible: false }}
+      />
     </Stack.Navigator>
   );
 }
