@@ -6,16 +6,18 @@ import HistoryScreen from '../screens/HistoryScreen';
 import ExerciseLibraryScreen from '../screens/ExerciseLibraryScreen';
 import ActiveWorkoutScreen from '../screens/ActiveWorkoutScreen';
 import SessionDetailScreen from '../screens/SessionDetailScreen';
+import ProgressScreen from '../screens/ProgressScreen';
 
 export type RootStackParamList = {
   Tabs: undefined;
-  ActiveWorkout: { sessionId: number };
+  ActiveWorkout: { sessionId: number; routineId?: number };
   SessionDetail: { sessionId: number };
 };
 
 export type TabParamList = {
   Home: undefined;
   History: undefined;
+  Progress: undefined;
   Library: undefined;
 };
 
@@ -27,6 +29,7 @@ function Tabs() {
     <Tab.Navigator>
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
+      <Tab.Screen name="Progress" component={ProgressScreen} />
       <Tab.Screen name="Library" component={ExerciseLibraryScreen} options={{ title: 'Exercises' }} />
     </Tab.Navigator>
   );

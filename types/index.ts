@@ -12,6 +12,12 @@ export interface Session {
   notes: string | null;
 }
 
+export interface Routine {
+  id: number;
+  name: string;
+  created_at: string;
+}
+
 export interface WorkoutSet {
   id: number;
   session_id: number;

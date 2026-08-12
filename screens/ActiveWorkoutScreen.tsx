@@ -5,6 +5,10 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import type { Exercise, WorkoutSet } from '../types';
+import { useRestTimer } from '../hooks/useRestTimer';
+import RestTimer from '../components/RestTimer';
+
+const DEFAULT_REST_SECONDS = 90;
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ActiveWorkout'>;
 type Route = RouteProp<RootStackParamList, 'ActiveWorkout'>;
@@ -18,12 +22,13 @@ export default function ActiveWorkoutScreen() {
   const db = useSQLiteContext();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { sessionId } = route.params;
+  const { sessionId, routineId } = route.params;
 
   const [library, setLibrary] = useState<Exercise[]>([]);
   const [blocks, setBlocks] = useState<ExerciseBlock[]>([]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [inputs, setInputs] = useState<Record<number, { weight: string; reps: string }>>({});
+  const restTimer = useRestTimer();
 
   const loadLibrary = useCallback(async () => {
     const rows = await db.getAllAsync<Exercise>('SELECT * FROM exercises ORDER BY name ASC');
@@ -46,9 +51,30 @@ export default function ActiveWorkoutScreen() {
     });
   }, [db, sessionId]);
 
+  const loadRoutineExercises = useCallback(
+    async (id: number) => {
+      const rows = await db.getAllAsync<Exercise>(
+        `SELECT exercises.* FROM routine_exercises
+         JOIN exercises ON exercises.id = routine_exercises.exercise_id
+         WHERE routine_exercises.routine_id = ?
+         ORDER BY routine_exercises.position ASC`,
+        id
+      );
+      setBlocks(rows.map((exercise) => ({ exercise, sets: [] })));
+      setInputs(Object.fromEntries(rows.map((exercise) => [exercise.id, { weight: '', reps: '' }])));
+    },
+    [db]
+  );
+
   useEffect(() => {
     loadLibrary();
   }, [loadLibrary]);
+
+  useEffect(() => {
+    if (routineId != null) {
+      loadRoutineExercises(routineId);
+    }
+  }, [routineId, loadRoutineExercises]);
 
   function addExerciseToWorkout(exercise: Exercise) {
     setPickerVisible(false);
@@ -77,9 +103,11 @@ export default function ActiveWorkoutScreen() {
     );
     setInputs((prev) => ({ ...prev, [exercise.id]: { weight: '', reps: '' } }));
     loadSets();
+    restTimer.start(DEFAULT_REST_SECONDS);
   }
 
   async function finishWorkout() {
+    await restTimer.stop();
     await db.runAsync(
       "UPDATE sessions SET duration_seconds = CAST((julianday('now') - julianday(date)) * 86400 AS INTEGER) WHERE id = ?",
       sessionId
@@ -138,6 +166,13 @@ export default function ActiveWorkoutScreen() {
           </Pressable>
         }
       />
+      <RestTimer
+        secondsLeft={restTimer.secondsLeft}
+        running={restTimer.running}
+        onStart={(seconds) => restTimer.start(seconds)}
+        onStop={() => restTimer.stop()}
+      />
+
       <Pressable style={styles.finishButton} onPress={finishWorkout}>
         <Text style={styles.finishButtonText}>Finish Workout</Text>
       </Pressable>
