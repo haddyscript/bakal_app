@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { View, Pressable, FlatList, StyleSheet } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { View, Pressable, SectionList, Alert, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
@@ -9,6 +9,8 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { setStatusBarStyle } from 'expo-status-bar';
 import type { Exercise } from '../types';
+import { categoryRank, getExerciseCategory } from '../utils/exerciseCategory';
+import { FONT_SEMIBOLD } from '../theme/typography';
 
 const RED = '#e5484d';
 
@@ -43,6 +45,37 @@ export default function ExerciseLibraryScreen() {
     loadExercises();
   }
 
+  function deleteExercise(exercise: Exercise) {
+    Alert.alert(
+      'Delete exercise?',
+      `"${exercise.name}" will be removed from your library. Sets already logged for it will stay in your history but won't show as linked to it anymore.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await db.runAsync('DELETE FROM exercises WHERE id = ?', exercise.id);
+            loadExercises();
+          },
+        },
+      ]
+    );
+  }
+
+  const sections = useMemo(() => {
+    const byCategory = new Map<string, Exercise[]>();
+    for (const exercise of exercises) {
+      const category = getExerciseCategory(exercise.muscle_group);
+      const list = byCategory.get(category) ?? [];
+      list.push(exercise);
+      byCategory.set(category, list);
+    }
+    return Array.from(byCategory.entries())
+      .sort(([a], [b]) => categoryRank(a) - categoryRank(b))
+      .map(([title, data]) => ({ title, data }));
+  }, [exercises]);
+
   return (
     <View style={styles.container}>
       <View style={styles.formWrap}>
@@ -73,10 +106,16 @@ export default function ExerciseLibraryScreen() {
         </BlurView>
       </View>
 
-      <FlatList
-        data={exercises}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
+        stickySectionHeadersEnabled
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>{section.title}</Text>
+          </View>
+        )}
         renderItem={({ item }) => (
           <View style={styles.rowWrap}>
             <BlurView intensity={30} tint="dark" style={styles.row}>
@@ -87,6 +126,9 @@ export default function ExerciseLibraryScreen() {
                 <Text style={styles.rowTitle}>{item.name}</Text>
                 {item.muscle_group ? <Text style={styles.rowSubtitle}>{item.muscle_group}</Text> : null}
               </View>
+              <Pressable onPress={() => deleteExercise(item)} hitSlop={8}>
+                <Ionicons name="trash-outline" size={18} color="#888" />
+              </Pressable>
             </BlurView>
           </View>
         )}
@@ -133,6 +175,17 @@ const styles = StyleSheet.create({
   addButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   list: { padding: 20, paddingTop: 8, paddingBottom: 40 },
+  sectionHeader: {
+    backgroundColor: '#0d0d0d',
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  sectionHeaderText: {
+    color: '#999',
+    fontSize: 12,
+    fontFamily: FONT_SEMIBOLD,
+    letterSpacing: 1,
+  },
   rowWrap: {
     borderRadius: 16,
     marginBottom: 10,

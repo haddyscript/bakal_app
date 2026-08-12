@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 export const DATABASE_NAME = 'bakal.db';
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 2;
+  const DATABASE_VERSION = 10;
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   let currentDbVersion = result?.user_version ?? 0;
 
@@ -58,6 +58,98 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       );
     `);
     currentDbVersion = 2;
+  }
+
+  if (currentDbVersion === 2) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Incline Bench Press', 'Upper Chest'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Incline Bench Press');
+
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Pull ups', 'Back'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Pull ups');
+    `);
+    currentDbVersion = 3;
+  }
+
+  if (currentDbVersion === 3) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Side Lateral Raises', 'Side Delt Shoulder'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Side Lateral Raises');
+    `);
+    currentDbVersion = 4;
+  }
+
+  if (currentDbVersion === 4) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Cable Tricep Push Down', 'Tricep'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Cable Tricep Push Down');
+
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Skull Crusher', 'Tricep'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Skull Crusher');
+    `);
+    currentDbVersion = 5;
+  }
+
+  if (currentDbVersion === 5) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Leg Press', 'Leg'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Leg Press');
+
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Calf Raise', 'Leg'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Calf Raise');
+
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Leg Extension', 'Leg'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Leg Extension');
+    `);
+    currentDbVersion = 6;
+  }
+
+  if (currentDbVersion === 6) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Chest Press', 'Chest'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Chest Press');
+    `);
+    currentDbVersion = 7;
+  }
+
+  if (currentDbVersion === 7) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Low-to-High Cable Fly', 'Chest'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Low-to-High Cable Fly');
+    `);
+    currentDbVersion = 8;
+  }
+
+  if (currentDbVersion === 8) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Cable Face Pull', 'Shoulder'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Cable Face Pull');
+    `);
+    currentDbVersion = 9;
+  }
+
+  if (currentDbVersion === 9) {
+    await db.execAsync(`
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Lat Pulldown', 'Back'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Lat Pulldown');
+
+      INSERT INTO exercises (name, muscle_group)
+      SELECT 'Seated Cable Row', 'Back'
+      WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = 'Seated Cable Row');
+    `);
+    currentDbVersion = 10;
   }
 
   await db.execAsync(`PRAGMA user_version = ${currentDbVersion}`);
