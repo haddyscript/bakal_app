@@ -95,7 +95,7 @@ export default function HomeScreen() {
         <View style={[styles.hero, { paddingTop: insets.top + 16 }]}>
           <View style={styles.heroImageClip}>
             <Image
-              source={require('../assets/images/mirror-shot.png')}
+              source={require('../assets/images/sideview-sando-black.png')}
               style={styles.heroImage}
               resizeMode="cover"
             />
@@ -274,23 +274,21 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0d0d0d' },
   scrollContent: { paddingBottom: 60 },
 
-  hero: { position: 'relative', minHeight: 460, paddingHorizontal: 24, overflow: 'hidden' },
+  hero: { position: 'relative', minHeight: 470, paddingHorizontal: 24, overflow: 'hidden' },
   heroImageClip: {
     position: 'absolute',
     right: -40,
     bottom: 0,
     width: '66%',
-    height: 340,
+    height: 360,
     borderTopLeftRadius: 90,
     overflow: 'hidden',
   },
-  // Rendered taller than the clip box and shifted up, so the visible window
-  // favors torso/shoulders over the face and phone at the top of the photo.
-  heroImage: { width: '100%', height: 430, marginTop: -45 },
-  // Fades the clip's own top edge into the background so its real (non-transparent)
-  // photo background doesn't read as a hard-edged rectangle against the hero bg.
-  heroImageTopFade: { position: 'absolute', top: 0, left: 0, right: 0, height: 50 },
-  heroImageFade: { position: 'absolute', right: '34%', bottom: 0, width: 130, height: 340 },
+  heroImage: { width: '100%', height: 430, marginTop: -6 },
+  // Just a light feather on the clip's own top edge — kept small so it
+  // doesn't shadow the face.
+  heroImageTopFade: { position: 'absolute', top: 0, left: 0, right: 0, height: 16 },
+  heroImageFade: { position: 'absolute', right: '34%', bottom: 0, width: 130, height: 360 },
 
   heroText: { gap: 2 },
   headline: { fontSize: 34, fontWeight: '800', color: '#fff', lineHeight: 38 },
