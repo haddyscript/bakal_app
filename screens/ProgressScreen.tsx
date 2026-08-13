@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, Pressable, ScrollView, FlatList, Modal, Alert, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, FlatList, Modal, Alert, Image, Dimensions, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
+import * as ImagePicker from 'expo-image-picker';
+import { File, Directory, Paths } from 'expo-file-system';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,7 +11,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-gifted-charts';
 import { setStatusBarStyle } from 'expo-status-bar';
-import type { Exercise, BodyWeightEntry } from '../types';
+import type { Exercise, BodyWeightEntry, ProgressPhoto } from '../types';
 import { parseSqliteDate } from '../utils/date';
 
 interface ProgressPoint {
@@ -19,7 +21,12 @@ interface ProgressPoint {
 }
 
 type Metric = 'weight' | 'volume';
-type Selection = number | 'bodyweight' | null;
+type Selection = number | 'bodyweight' | 'photos' | null;
+
+const PHOTOS_DIR = new Directory(Paths.document, 'progress-photos');
+const GRID_GAP = 8;
+const GRID_COLUMNS = 3;
+const GRID_ITEM_SIZE = (Dimensions.get('window').width - 40 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
 const RED = '#e5484d';
 
@@ -35,6 +42,8 @@ export default function ProgressScreen() {
   const [heightInput, setHeightInput] = useState('');
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
+  const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   const loadExercises = useCallback(async () => {
     const rows = await db.getAllAsync<Exercise>('SELECT * FROM exercises ORDER BY name ASC');
@@ -66,6 +75,64 @@ export default function ProgressScreen() {
     await db.runAsync("INSERT INTO body_weight (weight, date) VALUES (?, datetime('now'))", weight);
     setBwInput('');
     loadBodyWeights();
+  }
+
+  const loadPhotos = useCallback(async () => {
+    const rows = await db.getAllAsync<ProgressPhoto>('SELECT * FROM progress_photos ORDER BY date DESC');
+    setPhotos(rows);
+  }, [db]);
+
+  async function savePickedPhoto(uri: string) {
+    PHOTOS_DIR.create({ intermediates: true, idempotent: true });
+    const destFile = new File(PHOTOS_DIR, `${Date.now()}.jpg`);
+    new File(uri).copy(destFile);
+    await db.runAsync("INSERT INTO progress_photos (uri, date) VALUES (?, datetime('now'))", destFile.uri);
+    loadPhotos();
+  }
+
+  async function pickFromCamera() {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Camera access needed', 'Enable camera access in Settings to take progress photos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (!result.canceled) await savePickedPhoto(result.assets[0].uri);
+  }
+
+  async function pickFromLibrary() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Photo access needed', 'Enable photo library access in Settings to add progress photos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+    if (!result.canceled) await savePickedPhoto(result.assets[0].uri);
+  }
+
+  function addPhoto() {
+    Alert.alert('Add Progress Photo', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Choose from Library', onPress: pickFromLibrary },
+      { text: 'Take Photo', onPress: pickFromCamera },
+    ]);
+  }
+
+  function deletePhoto(photo: ProgressPhoto) {
+    Alert.alert('Delete photo?', 'This photo will be permanently removed.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const file = new File(photo.uri);
+          if (file.exists) file.delete();
+          await db.runAsync('DELETE FROM progress_photos WHERE id = ?', photo.id);
+          setViewerIndex(null);
+          loadPhotos();
+        },
+      },
+    ]);
   }
 
   function deleteBodyWeight(entry: BodyWeightEntry) {
@@ -103,9 +170,10 @@ export default function ProgressScreen() {
       loadExercises();
       loadBodyWeights();
       loadProfile();
+      loadPhotos();
       setStatusBarStyle('light');
       return () => setStatusBarStyle('dark');
-    }, [loadExercises, loadBodyWeights, loadProfile])
+    }, [loadExercises, loadBodyWeights, loadProfile, loadPhotos])
   );
 
   useFocusEffect(
@@ -144,11 +212,25 @@ export default function ProgressScreen() {
     return { label: 'Obese', color: RED };
   }, [bmi]);
 
+  function iconFor(id: Selection): keyof typeof Ionicons.glyphMap {
+    if (id === 'bodyweight') return 'scale-outline';
+    if (id === 'photos') return 'images-outline';
+    return 'barbell';
+  }
+
   const selectedLabel =
-    selectedId === 'bodyweight' ? 'Body Weight' : exercises.find((ex) => ex.id === selectedId)?.name ?? 'Select an exercise';
+    selectedId === 'bodyweight'
+      ? 'Body Weight'
+      : selectedId === 'photos'
+        ? 'Progress Photos'
+        : exercises.find((ex) => ex.id === selectedId)?.name ?? 'Select an exercise';
 
   const pickerOptions = useMemo(() => {
-    const all = [{ id: 'bodyweight' as const, name: 'Body Weight' }, ...exercises];
+    const all = [
+      { id: 'bodyweight' as const, name: 'Body Weight' },
+      { id: 'photos' as const, name: 'Progress Photos' },
+      ...exercises,
+    ];
     const query = pickerSearch.trim().toLowerCase();
     if (!query) return all;
     return all.filter((item) => item.name.toLowerCase().includes(query));
@@ -177,12 +259,7 @@ export default function ProgressScreen() {
     <View style={styles.container}>
       <Pressable style={styles.selectorWrap} onPress={() => setPickerVisible(true)}>
         <BlurView intensity={30} tint="dark" style={styles.selector}>
-          <Ionicons
-            name={selectedId === 'bodyweight' ? 'scale-outline' : 'barbell'}
-            size={16}
-            color="#fff"
-            style={styles.selectorIcon}
-          />
+          <Ionicons name={iconFor(selectedId)} size={16} color="#fff" style={styles.selectorIcon} />
           <Text style={styles.selectorText}>{selectedLabel}</Text>
           <Ionicons name="chevron-down" size={18} color="#999" />
         </BlurView>
@@ -231,12 +308,7 @@ export default function ProgressScreen() {
                         closePicker();
                       }}
                     >
-                      <Ionicons
-                        name={item.id === 'bodyweight' ? 'scale-outline' : 'barbell'}
-                        size={16}
-                        color="#fff"
-                        style={styles.selectorIcon}
-                      />
+                      <Ionicons name={iconFor(item.id)} size={16} color="#fff" style={styles.selectorIcon} />
                       <Text style={styles.pickerRowText}>{item.name}</Text>
                       {active ? <Ionicons name="checkmark" size={18} color={RED} /> : null}
                     </Pressable>
@@ -380,6 +452,89 @@ export default function ProgressScreen() {
             </View>
           ) : null}
         </ScrollView>
+      ) : selectedId === 'photos' ? (
+        <View style={styles.photosContainer}>
+          <Pressable style={styles.addPhotoButton} onPress={addPhoto}>
+            <Ionicons name="camera-outline" size={18} color="#fff" />
+            <Text style={styles.addPhotoButtonText}>Add Photo</Text>
+          </Pressable>
+
+          {photos.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Ionicons name="images-outline" size={36} color="#444" />
+              <Text style={styles.empty}>No progress photos yet</Text>
+              <Text style={styles.emptySubtitle}>Add one every month or so to track changes over time.</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={photos}
+              keyExtractor={(item) => String(item.id)}
+              numColumns={GRID_COLUMNS}
+              contentContainerStyle={styles.photoGrid}
+              columnWrapperStyle={styles.photoGridRow}
+              renderItem={({ item, index }) => (
+                <Pressable onPress={() => setViewerIndex(index)}>
+                  <Image source={{ uri: item.uri }} style={styles.photoThumb} />
+                  <Text style={styles.photoThumbDate}>
+                    {parseSqliteDate(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          )}
+
+          <Modal visible={viewerIndex != null} animationType="fade" onRequestClose={() => setViewerIndex(null)}>
+            <View style={styles.viewerContainer}>
+              <View style={styles.viewerHeader}>
+                <Text style={styles.viewerDate}>
+                  {viewerIndex != null && photos[viewerIndex]
+                    ? parseSqliteDate(photos[viewerIndex].date).toLocaleDateString(undefined, {
+                        weekday: 'long',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                    : ''}
+                </Text>
+                <View style={styles.viewerHeaderActions}>
+                  <Pressable onPress={() => viewerIndex != null && deletePhoto(photos[viewerIndex])} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={22} color="#e5484d" />
+                  </Pressable>
+                  <Pressable onPress={() => setViewerIndex(null)} hitSlop={8}>
+                    <Ionicons name="close" size={26} color="#fff" />
+                  </Pressable>
+                </View>
+              </View>
+
+              {viewerIndex != null && photos[viewerIndex] ? (
+                <Image source={{ uri: photos[viewerIndex].uri }} style={styles.viewerImage} resizeMode="contain" />
+              ) : null}
+
+              <View style={styles.viewerNav}>
+                <Pressable
+                  disabled={viewerIndex == null || viewerIndex >= photos.length - 1}
+                  onPress={() => setViewerIndex((i) => (i != null ? i + 1 : i))}
+                  style={styles.viewerNavButton}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={22}
+                    color={viewerIndex != null && viewerIndex < photos.length - 1 ? '#fff' : '#444'}
+                  />
+                  <Text style={styles.viewerNavText}>Older</Text>
+                </Pressable>
+                <Pressable
+                  disabled={viewerIndex == null || viewerIndex <= 0}
+                  onPress={() => setViewerIndex((i) => (i != null ? i - 1 : i))}
+                  style={styles.viewerNavButton}
+                >
+                  <Text style={styles.viewerNavText}>Newer</Text>
+                  <Ionicons name="chevron-forward" size={22} color={viewerIndex != null && viewerIndex > 0 ? '#fff' : '#444'} />
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
+        </View>
       ) : exercises.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Ionicons name="stats-chart-outline" size={36} color="#444" />
@@ -598,4 +753,52 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: 'center', marginTop: 80, gap: 8, paddingHorizontal: 24 },
   empty: { textAlign: 'center', color: '#999', fontSize: 15, fontWeight: '600', marginTop: 4 },
   emptySubtitle: { textAlign: 'center', color: '#666', fontSize: 13 },
+
+  photosContainer: { flex: 1 },
+  addPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: RED,
+    borderRadius: 14,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  addPhotoButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  photoGrid: { paddingHorizontal: 20, paddingBottom: 40 },
+  photoGridRow: { gap: GRID_GAP, marginBottom: GRID_GAP },
+  photoThumb: {
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  photoThumbDate: { color: '#999', fontSize: 10, marginTop: 4, textAlign: 'center' },
+
+  viewerContainer: { flex: 1, backgroundColor: '#000', paddingTop: 60 },
+  viewerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  viewerDate: { color: '#fff', fontSize: 14, fontWeight: '600', flex: 1 },
+  viewerHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  viewerImage: { flex: 1, width: '100%' },
+  viewerNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  viewerNavButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  viewerNavText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });

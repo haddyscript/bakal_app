@@ -34,3 +34,9 @@ export interface BodyWeightEntry {
   weight: number;
   date: string;
 }
+
+export interface ProgressPhoto {
+  id: number;
+  uri: string;
+  date: string;
+}

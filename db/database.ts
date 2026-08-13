@@ -178,5 +178,16 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     currentDbVersion = 13;
   }
 
+  if (currentDbVersion === 13) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS progress_photos (
+        id INTEGER PRIMARY KEY NOT NULL,
+        uri TEXT NOT NULL,
+        date TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    currentDbVersion = 14;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${currentDbVersion}`);
 }

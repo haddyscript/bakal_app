@@ -9,7 +9,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSFaceIDUsageDescription": "BAKAL uses Face ID to keep your workout data private."
+        "NSFaceIDUsageDescription": "BAKAL uses Face ID to keep your workout data private.",
+        "NSCameraUsageDescription": "BAKAL uses the camera to take progress photos.",
+        "NSPhotoLibraryUsageDescription": "BAKAL uses your photo library to add progress photos."
       }
     },
     "android": {
@@ -26,7 +28,14 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BAKAL uses your photo library to add progress photos.",
+          "cameraPermission": "BAKAL uses the camera to take progress photos."
+        }
+      ]
     ]
   }
 }
