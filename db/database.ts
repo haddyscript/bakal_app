@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 export const DATABASE_NAME = 'bakal.db';
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 11;
+  const DATABASE_VERSION = 12;
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   let currentDbVersion = result?.user_version ?? 0;
 
@@ -155,6 +155,17 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   if (currentDbVersion === 10) {
     await db.execAsync(`ALTER TABLE sessions ADD COLUMN name TEXT;`);
     currentDbVersion = 11;
+  }
+
+  if (currentDbVersion === 11) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS body_weight (
+        id INTEGER PRIMARY KEY NOT NULL,
+        weight REAL NOT NULL,
+        date TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    currentDbVersion = 12;
   }
 
   await db.execAsync(`PRAGMA user_version = ${currentDbVersion}`);

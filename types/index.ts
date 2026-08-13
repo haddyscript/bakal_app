@@ -28,3 +28,9 @@ export interface WorkoutSet {
   set_order: number;
   rest_seconds: number | null;
 }
+
+export interface BodyWeightEntry {
+  id: number;
+  weight: number;
+  date: string;
+}

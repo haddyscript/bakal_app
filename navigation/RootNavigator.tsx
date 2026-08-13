@@ -12,7 +12,12 @@ import ProgressScreen from '../screens/ProgressScreen';
 
 export type RootStackParamList = {
   Tabs: undefined;
-  ActiveWorkout: { sessionId: number; routineId?: number; initialName?: string };
+  ActiveWorkout: {
+    sessionId: number;
+    routineId?: number;
+    initialName?: string;
+    prefill?: { exerciseId: number; weight: number; reps: number }[];
+  };
   SessionDetail: { sessionId: number };
 };
 

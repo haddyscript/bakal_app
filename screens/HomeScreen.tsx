@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Pressable, FlatList, Modal, Image, ScrollView, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Text from '../components/Text';
@@ -9,17 +9,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LineChart } from 'react-native-gifted-charts';
 import { setStatusBarStyle } from 'expo-status-bar';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import type { Exercise, Routine } from '../types';
 import { FONT_BOLD } from '../theme/typography';
+import { parseSqliteDate } from '../utils/date';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-// Decorative only — BAKAL has no wearable/health sensor data. This mirrors
-// the reference dashboard's look with static placeholder values.
-const PULSE_CHART_DATA = [{ value: 30 }, { value: 65 }, { value: 40 }, { value: 85 }, { value: 50 }, { value: 78 }];
+const HEATMAP_WEEKS = 10;
+const HEATMAP_DAYS = HEATMAP_WEEKS * 7;
+
+function dayKey(d: Date) {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
 
 export default function HomeScreen() {
   const db = useSQLiteContext();
@@ -31,6 +34,7 @@ export default function HomeScreen() {
   const [builderVisible, setBuilderVisible] = useState(false);
   const [routineName, setRoutineName] = useState('');
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<number[]>([]);
+  const [sessionDates, setSessionDates] = useState<string[]>([]);
 
   const loadRoutines = useCallback(async () => {
     const rows = await db.getAllAsync<Routine>('SELECT * FROM routines ORDER BY name ASC');
@@ -42,14 +46,53 @@ export default function HomeScreen() {
     setLibrary(rows);
   }, [db]);
 
+  const loadSessionDates = useCallback(async () => {
+    const rows = await db.getAllAsync<{ date: string }>('SELECT date FROM sessions');
+    setSessionDates(rows.map((r) => r.date));
+  }, [db]);
+
   useFocusEffect(
     useCallback(() => {
       loadRoutines();
       loadLibrary();
+      loadSessionDates();
       setStatusBarStyle('light');
       return () => setStatusBarStyle('dark');
-    }, [loadRoutines, loadLibrary])
+    }, [loadRoutines, loadLibrary, loadSessionDates])
   );
+
+  const activeDays = useMemo(() => new Set(sessionDates.map((d) => dayKey(parseSqliteDate(d)))), [sessionDates]);
+
+  const heatmapColumns = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days: { date: Date; active: boolean }[] = [];
+    for (let i = HEATMAP_DAYS - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      days.push({ date: d, active: activeDays.has(dayKey(d)) });
+    }
+    const columns: { date: Date; active: boolean }[][] = [];
+    for (let i = 0; i < days.length; i += 7) {
+      columns.push(days.slice(i, i + 7));
+    }
+    return columns;
+  }, [activeDays]);
+
+  const streak = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const cursor = new Date(today);
+    if (!activeDays.has(dayKey(cursor))) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    let count = 0;
+    while (activeDays.has(dayKey(cursor))) {
+      count++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+  }, [activeDays]);
 
   async function startWorkout() {
     const result = await db.runAsync("INSERT INTO sessions (date) VALUES (datetime('now'))");
@@ -192,56 +235,32 @@ export default function HomeScreen() {
               end={{ x: 0.6, y: 1 }}
               style={styles.pulseCardSheen}
             />
-          <View style={styles.pulseCardTop}>
-            <Text style={styles.pulseCardLabel}>Pulse Rate</Text>
-            <View style={styles.pulseCardIcons}>
-              <View style={styles.pulseIconCircle}>
-                <Ionicons name="barbell-outline" size={16} color="#fff" />
-              </View>
-              <View style={styles.pulseIconCircle}>
-                <Ionicons name="options-outline" size={16} color="#fff" />
+            <View style={styles.pulseCardTop}>
+              <Text style={styles.pulseCardLabel}>Workout Streak</Text>
+              <View style={styles.streakBadge}>
+                <Ionicons name="flame" size={14} color="#f5b942" />
+                <Text style={styles.streakBadgeText}>{streak}</Text>
               </View>
             </View>
-          </View>
 
-          <View style={styles.pulseValueRow}>
-            <Ionicons name="heart" size={22} color="#e5484d" />
-            <Text style={styles.pulseValue}>110</Text>
-          </View>
-
-          <View style={styles.pulseNote}>
-            <Ionicons name="checkmark-circle" size={14} color="#e5484d" />
-            <Text style={styles.pulseNoteText}>
-              Need to keep <Text style={styles.pulseNoteAccent}>balance</Text>
+            <Text style={styles.streakSubtitle}>
+              {streak === 0
+                ? 'Log a workout today to start a streak.'
+                : `${streak} day${streak === 1 ? '' : 's'} in a row. Keep it going.`}
             </Text>
-          </View>
 
-          <View style={styles.chartWrap}>
-            <View style={styles.hrvPill}>
-              <Text style={styles.hrvPillText}>HRV 54</Text>
+            <View style={styles.heatmapWrap}>
+              {heatmapColumns.map((column, colIndex) => (
+                <View key={colIndex} style={styles.heatmapColumn}>
+                  {column.map((day, rowIndex) => (
+                    <View
+                      key={rowIndex}
+                      style={[styles.heatmapCell, day.active ? styles.heatmapCellActive : styles.heatmapCellInactive]}
+                    />
+                  ))}
+                </View>
+              ))}
             </View>
-            <LineChart
-              data={PULSE_CHART_DATA}
-              thickness={2}
-              color="#e5484d"
-              dataPointsColor="#e5484d"
-              dataPointsRadius={3}
-              curved
-              areaChart
-              startFillColor="rgba(229,72,77,0.25)"
-              endFillColor="rgba(229,72,77,0)"
-              startOpacity={0.5}
-              endOpacity={0}
-              hideRules
-              hideYAxisText
-              hideAxesAndRules
-              height={90}
-              width={260}
-              spacing={48}
-              initialSpacing={8}
-              disableScroll
-            />
-          </View>
           </BlurView>
         </View>
 
@@ -410,37 +429,25 @@ const styles = StyleSheet.create({
   pulseCardSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '55%' },
   pulseCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pulseCardLabel: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  pulseCardIcons: { flexDirection: 'row', gap: 10 },
-  pulseIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  streakBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  pulseValueRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
-  pulseValue: { color: '#fff', fontSize: 34, fontWeight: '800' },
-  pulseNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  pulseNoteText: { color: '#999', fontSize: 13 },
-  pulseNoteAccent: { color: RED, fontWeight: '700' },
-
-  chartWrap: { marginTop: 20, alignItems: 'center', position: 'relative' },
-  hrvPill: {
-    position: 'absolute',
-    top: -6,
-    alignSelf: 'center',
-    zIndex: 2,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    gap: 5,
+    backgroundColor: 'rgba(245,185,66,0.12)',
     borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(245,185,66,0.3)',
   },
-  hrvPillText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  streakBadgeText: { color: '#f5b942', fontSize: 15, fontWeight: '800' },
+  streakSubtitle: { color: '#999', fontSize: 13, marginTop: 8 },
+
+  heatmapWrap: { flexDirection: 'row', gap: 4, marginTop: 20 },
+  heatmapColumn: { gap: 4 },
+  heatmapCell: { width: 12, height: 12, borderRadius: 3 },
+  heatmapCellActive: { backgroundColor: RED },
+  heatmapCellInactive: { backgroundColor: 'rgba(255,255,255,0.08)' },
 
   section: { paddingHorizontal: 20, paddingTop: 8, gap: 4 },
   startButton: {

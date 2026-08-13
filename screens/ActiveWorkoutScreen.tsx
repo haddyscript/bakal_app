@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Pressable, FlatList, Modal, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Text from '../components/Text';
@@ -29,22 +29,38 @@ export default function ActiveWorkoutScreen() {
   const db = useSQLiteContext();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { sessionId, routineId, initialName } = route.params;
+  const { sessionId, routineId, initialName, prefill } = route.params;
 
   const [library, setLibrary] = useState<Exercise[]>([]);
   const [blocks, setBlocks] = useState<ExerciseBlock[]>([]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [inputs, setInputs] = useState<Record<number, { weight: string; reps: string }>>({});
   const [workoutName, setWorkoutName] = useState(initialName ?? '');
+  const [notes, setNotes] = useState('');
+  const [bestWeights, setBestWeights] = useState<Record<number, number>>({});
+  const [prBanner, setPrBanner] = useState<string | null>(null);
+  const prBannerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restTimer = useRestTimer();
 
-  async function saveWorkoutName() {
-    await db.runAsync('UPDATE sessions SET name = ? WHERE id = ?', workoutName.trim() || null, sessionId);
+  async function saveMeta() {
+    await db.runAsync(
+      'UPDATE sessions SET name = ?, notes = ? WHERE id = ?',
+      workoutName.trim() || null,
+      notes.trim() || null,
+      sessionId
+    );
   }
 
   const loadLibrary = useCallback(async () => {
     const rows = await db.getAllAsync<Exercise>('SELECT * FROM exercises ORDER BY name ASC');
     setLibrary(rows);
+  }, [db]);
+
+  const loadBestWeights = useCallback(async () => {
+    const rows = await db.getAllAsync<{ exercise_id: number; best: number }>(
+      'SELECT exercise_id, MAX(weight) as best FROM sets GROUP BY exercise_id'
+    );
+    setBestWeights(Object.fromEntries(rows.map((r) => [r.exercise_id, r.best])));
   }, [db]);
 
   const loadSets = useCallback(async () => {
@@ -80,13 +96,33 @@ export default function ActiveWorkoutScreen() {
 
   useEffect(() => {
     loadLibrary();
-  }, [loadLibrary]);
+    loadBestWeights();
+  }, [loadLibrary, loadBestWeights]);
+
+  const loadPrefillExercises = useCallback(
+    async (items: { exerciseId: number; weight: number; reps: number }[]) => {
+      const ids = items.map((i) => i.exerciseId);
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = await db.getAllAsync<Exercise>(`SELECT * FROM exercises WHERE id IN (${placeholders})`, ...ids);
+      const byId = new Map(rows.map((e) => [e.id, e]));
+      const orderedExercises = items.map((i) => byId.get(i.exerciseId)).filter((e): e is Exercise => !!e);
+      setBlocks(orderedExercises.map((exercise) => ({ exercise, sets: [] })));
+      setInputs(
+        Object.fromEntries(
+          items.filter((i) => byId.has(i.exerciseId)).map((i) => [i.exerciseId, { weight: String(i.weight), reps: String(i.reps) }])
+        )
+      );
+    },
+    [db]
+  );
 
   useEffect(() => {
     if (routineId != null) {
       loadRoutineExercises(routineId);
+    } else if (prefill && prefill.length > 0) {
+      loadPrefillExercises(prefill);
     }
-  }, [routineId, loadRoutineExercises]);
+  }, [routineId, loadRoutineExercises, prefill, loadPrefillExercises]);
 
   useFocusEffect(
     useCallback(() => {
@@ -111,6 +147,7 @@ export default function ActiveWorkoutScreen() {
 
     const currentBlock = blocks.find((b) => b.exercise.id === exercise.id);
     const nextOrder = (currentBlock?.sets.length ?? 0) + 1;
+    const previousBest = bestWeights[exercise.id];
 
     await db.runAsync(
       'INSERT INTO sets (session_id, exercise_id, weight, reps, set_order) VALUES (?, ?, ?, ?, ?)',
@@ -123,11 +160,30 @@ export default function ActiveWorkoutScreen() {
     setInputs((prev) => ({ ...prev, [exercise.id]: { weight: '', reps: '' } }));
     loadSets();
     restTimer.start(DEFAULT_REST_SECONDS);
+
+    if (previousBest != null && weight > previousBest) {
+      setBestWeights((prev) => ({ ...prev, [exercise.id]: weight }));
+      showPrBanner(`New PR! ${weight}kg on ${exercise.name}`);
+    } else if (previousBest == null) {
+      setBestWeights((prev) => ({ ...prev, [exercise.id]: weight }));
+    }
   }
+
+  function showPrBanner(message: string) {
+    if (prBannerTimeout.current) clearTimeout(prBannerTimeout.current);
+    setPrBanner(message);
+    prBannerTimeout.current = setTimeout(() => setPrBanner(null), 2800);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (prBannerTimeout.current) clearTimeout(prBannerTimeout.current);
+    };
+  }, []);
 
   async function finishWorkout() {
     await restTimer.stop();
-    await saveWorkoutName();
+    await saveMeta();
     await db.runAsync(
       "UPDATE sessions SET duration_seconds = CAST((julianday('now') - julianday(date)) * 86400 AS INTEGER) WHERE id = ?",
       sessionId
@@ -137,6 +193,14 @@ export default function ActiveWorkoutScreen() {
 
   return (
     <View style={styles.container}>
+      {prBanner ? (
+        <View style={styles.prBannerWrap} pointerEvents="none">
+          <BlurView intensity={50} tint="dark" style={styles.prBanner}>
+            <Ionicons name="trophy" size={16} color="#f5b942" />
+            <Text style={styles.prBannerText}>{prBanner}</Text>
+          </BlurView>
+        </View>
+      ) : null}
       <View style={styles.nameField}>
         <Ionicons name="pencil" size={16} color="#666" />
         <TextInput
@@ -145,7 +209,19 @@ export default function ActiveWorkoutScreen() {
           placeholderTextColor="#666"
           value={workoutName}
           onChangeText={setWorkoutName}
-          onEndEditing={saveWorkoutName}
+          onEndEditing={saveMeta}
+        />
+      </View>
+      <View style={styles.notesField}>
+        <Ionicons name="document-text-outline" size={16} color="#666" />
+        <TextInput
+          style={styles.notesInput}
+          placeholder="Add notes (optional)"
+          placeholderTextColor="#666"
+          value={notes}
+          onChangeText={setNotes}
+          onEndEditing={saveMeta}
+          multiline
         />
       </View>
       <FlatList
@@ -165,9 +241,14 @@ export default function ActiveWorkoutScreen() {
               {item.sets.map((s) => (
                 <View key={s.id} style={styles.setRow}>
                   <Text style={styles.setLabel}>Set {s.set_order}</Text>
-                  <Text style={styles.setValue}>
-                    {s.weight} kg <Text style={styles.setValueMuted}>×</Text> {s.reps}
-                  </Text>
+                  <View style={styles.setValueRow}>
+                    {bestWeights[item.exercise.id] === s.weight ? (
+                      <Ionicons name="trophy" size={13} color="#f5b942" />
+                    ) : null}
+                    <Text style={styles.setValue}>
+                      {s.weight} kg <Text style={styles.setValueMuted}>×</Text> {s.reps}
+                    </Text>
+                  </View>
                 </View>
               ))}
 
@@ -280,6 +361,17 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.14)',
   },
   nameInput: { flex: 1, color: '#fff', fontSize: 17, fontFamily: FONT_SEMIBOLD },
+  notesField: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginHorizontal: 20,
+    marginTop: 10,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.14)',
+  },
+  notesInput: { flex: 1, color: '#ccc', fontSize: 14, minHeight: 20 },
   list: { padding: 20, gap: 12, paddingBottom: 12 },
   blockWrap: {
     borderRadius: 18,
@@ -309,8 +401,30 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.08)',
   },
   setLabel: { color: '#999', fontSize: 13 },
+  setValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   setValue: { color: '#fff', fontSize: 13, fontFamily: FONT_SEMIBOLD },
   setValueMuted: { color: '#666' },
+  prBannerWrap: {
+    position: 'absolute',
+    top: 8,
+    left: 20,
+    right: 20,
+    zIndex: 10,
+    alignItems: 'center',
+  },
+  prBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(20,20,20,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,185,66,0.4)',
+    overflow: 'hidden',
+  },
+  prBannerText: { color: '#fff', fontSize: 13, fontFamily: FONT_SEMIBOLD },
   setForm: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
   setInput: {
     flex: 1,

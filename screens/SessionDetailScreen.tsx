@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, FlatList, StyleSheet } from 'react-native';
+import { View, FlatList, Pressable, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Text from '../components/Text';
-import { useFocusEffect, useRoute, type RouteProp } from '@react-navigation/native';
+import TextInput from '../components/TextInput';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,6 +14,7 @@ import { parseSqliteDate } from '../utils/date';
 
 interface SetRow {
   set_id: number;
+  exercise_id: number;
   weight: number;
   reps: number;
   set_order: number;
@@ -27,29 +30,34 @@ interface SessionInfo {
   date: string;
   duration_seconds: number | null;
   name: string | null;
+  notes: string | null;
 }
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'SessionDetail'>;
 
 const RED = '#e5484d';
 
 export default function SessionDetailScreen() {
   const db = useSQLiteContext();
+  const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { sessionId } = route.params;
   const [rows, setRows] = useState<SetRow[]>([]);
   const [session, setSession] = useState<SessionInfo | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
 
   useEffect(() => {
     (async () => {
       const sessionRow = await db.getFirstAsync<SessionInfo>(
-        'SELECT date, duration_seconds, name FROM sessions WHERE id = ?',
+        'SELECT date, duration_seconds, name, notes FROM sessions WHERE id = ?',
         sessionId
       );
       setSession(sessionRow ?? null);
+      setNotesDraft(sessionRow?.notes ?? '');
 
       const joinedSets = await db.getAllAsync<SetRow>(
-        `SELECT sets.id as set_id, sets.weight, sets.reps, sets.set_order, exercises.name as exercise_name
+        `SELECT sets.id as set_id, sets.exercise_id, sets.weight, sets.reps, sets.set_order, exercises.name as exercise_name
          FROM sets
          JOIN exercises ON exercises.id = sets.exercise_id
          WHERE sets.session_id = ?
@@ -80,6 +88,24 @@ export default function SessionDetailScreen() {
   const totalVolume = useMemo(() => rows.reduce((sum, r) => sum + r.weight * r.reps, 0), [rows]);
 
   const date = session ? parseSqliteDate(session.date) : null;
+
+  async function saveNotes() {
+    await db.runAsync('UPDATE sessions SET notes = ? WHERE id = ?', notesDraft.trim() || null, sessionId);
+  }
+
+  async function repeatWorkout() {
+    if (groups.length === 0) return;
+    const prefill = groups.map((g) => {
+      const last = g.sets[g.sets.length - 1];
+      return { exerciseId: last.exercise_id, weight: last.weight, reps: last.reps };
+    });
+    const result = await db.runAsync("INSERT INTO sessions (date, name) VALUES (datetime('now'), ?)", session?.name ?? null);
+    navigation.navigate('ActiveWorkout', {
+      sessionId: result.lastInsertRowId,
+      initialName: session?.name ?? undefined,
+      prefill,
+    });
+  }
 
   return (
     <View style={styles.container}>
@@ -129,6 +155,33 @@ export default function SessionDetailScreen() {
             </View>
           </BlurView>
         </View>
+      ) : null}
+
+      {date ? (
+        <View style={styles.notesWrap}>
+          <BlurView intensity={30} tint="dark" style={styles.notesCard}>
+            <View style={styles.notesHeader}>
+              <Ionicons name="document-text-outline" size={16} color="#999" />
+              <Text style={styles.notesLabel}>Notes</Text>
+            </View>
+            <TextInput
+              style={styles.notesInput}
+              placeholder="Add notes about this workout..."
+              placeholderTextColor="#666"
+              value={notesDraft}
+              onChangeText={setNotesDraft}
+              onEndEditing={saveNotes}
+              multiline
+            />
+          </BlurView>
+        </View>
+      ) : null}
+
+      {rows.length > 0 ? (
+        <Pressable style={styles.repeatButton} onPress={repeatWorkout}>
+          <Ionicons name="repeat" size={18} color="#fff" />
+          <Text style={styles.repeatButtonText}>Repeat this workout</Text>
+        </Pressable>
       ) : null}
 
       <FlatList
@@ -192,6 +245,37 @@ const styles = StyleSheet.create({
   summaryStatValue: { color: RED, fontSize: 20, fontWeight: '800' },
   summaryStatLabel: { color: '#999', fontSize: 11, marginTop: 2, textTransform: 'uppercase' },
   summaryStatDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: 'rgba(255,255,255,0.14)' },
+
+  notesWrap: {
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+  },
+  notesCard: { backgroundColor: 'rgba(255,255,255,0.05)', padding: 14 },
+  notesHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  notesLabel: { color: '#999', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+  notesInput: { color: '#ccc', fontSize: 14, minHeight: 20 },
+
+  repeatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: RED,
+    borderRadius: 14,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  repeatButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   list: { padding: 20, paddingTop: 8, paddingBottom: 40 },
   exerciseCardWrap: {

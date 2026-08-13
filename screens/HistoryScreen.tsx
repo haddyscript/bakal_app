@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, FlatList, Pressable, StyleSheet } from 'react-native';
+import { View, FlatList, Pressable, Alert, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Text from '../components/Text';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -29,27 +29,42 @@ export default function HistoryScreen() {
   const navigation = useNavigation<Nav>();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
 
+  const loadSessions = useCallback(async () => {
+    const rows = await db.getAllAsync<SessionRow>(
+      `SELECT sessions.id, sessions.date, sessions.duration_seconds, sessions.name,
+              COUNT(sets.id) as set_count,
+              COUNT(DISTINCT sets.exercise_id) as exercise_count
+       FROM sessions
+       LEFT JOIN sets ON sets.session_id = sessions.id
+       GROUP BY sessions.id
+       ORDER BY sessions.date DESC`
+    );
+    setSessions(rows);
+  }, [db]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      db.getAllAsync<SessionRow>(
-        `SELECT sessions.id, sessions.date, sessions.duration_seconds, sessions.name,
-                COUNT(sets.id) as set_count,
-                COUNT(DISTINCT sets.exercise_id) as exercise_count
-         FROM sessions
-         LEFT JOIN sets ON sets.session_id = sessions.id
-         GROUP BY sessions.id
-         ORDER BY sessions.date DESC`
-      ).then((rows) => {
-        if (active) setSessions(rows);
-      });
+      loadSessions();
       setStatusBarStyle('light');
-      return () => {
-        active = false;
-        setStatusBarStyle('dark');
-      };
-    }, [db])
+      return () => setStatusBarStyle('dark');
+    }, [loadSessions])
   );
+
+  function deleteSession(session: SessionRow) {
+    const label = session.name || parseSqliteDate(session.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    Alert.alert('Delete workout?', `"${label}" and all its logged sets will be permanently deleted.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await db.runAsync('DELETE FROM sets WHERE session_id = ?', session.id);
+          await db.runAsync('DELETE FROM sessions WHERE id = ?', session.id);
+          loadSessions();
+        },
+      },
+    ]);
+  }
 
   return (
     <View style={styles.container}>
@@ -107,7 +122,12 @@ export default function HistoryScreen() {
                       <Text style={styles.durationPillText}>{Math.round(item.duration_seconds / 60)} min</Text>
                     </View>
                   ) : null}
-                  <Ionicons name="chevron-forward" size={18} color="#aaa" />
+                  <View style={styles.cardTrailingRow}>
+                    <Pressable onPress={() => deleteSession(item)} hitSlop={8}>
+                      <Ionicons name="trash-outline" size={18} color="#888" />
+                    </Pressable>
+                    <Ionicons name="chevron-forward" size={18} color="#aaa" />
+                  </View>
                 </View>
               </BlurView>
             </Pressable>
@@ -163,6 +183,7 @@ const styles = StyleSheet.create({
   cardDate: { color: '#fff', fontSize: 15, fontWeight: '700' },
   cardSubtitle: { color: '#999', fontSize: 13, marginTop: 3 },
   cardTrailing: { alignItems: 'flex-end', gap: 6 },
+  cardTrailingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   durationPill: {
     backgroundColor: 'rgba(229,72,77,0.18)',
     borderRadius: 20,
