@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, Pressable, ScrollView, Alert, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, FlatList, Modal, Alert, StyleSheet } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Text from '../components/Text';
 import TextInput from '../components/TextInput';
@@ -31,6 +31,10 @@ export default function ProgressScreen() {
   const [metric, setMetric] = useState<Metric>('weight');
   const [bodyWeights, setBodyWeights] = useState<BodyWeightEntry[]>([]);
   const [bwInput, setBwInput] = useState('');
+  const [heightCm, setHeightCm] = useState<number | null>(null);
+  const [heightInput, setHeightInput] = useState('');
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
 
   const loadExercises = useCallback(async () => {
     const rows = await db.getAllAsync<Exercise>('SELECT * FROM exercises ORDER BY name ASC');
@@ -42,6 +46,19 @@ export default function ProgressScreen() {
     const rows = await db.getAllAsync<BodyWeightEntry>('SELECT * FROM body_weight ORDER BY date ASC');
     setBodyWeights(rows);
   }, [db]);
+
+  const loadProfile = useCallback(async () => {
+    const row = await db.getFirstAsync<{ height_cm: number | null }>('SELECT height_cm FROM profile WHERE id = 1');
+    setHeightCm(row?.height_cm ?? null);
+    setHeightInput(row?.height_cm != null ? String(row.height_cm) : '');
+  }, [db]);
+
+  async function saveHeight() {
+    const value = parseFloat(heightInput);
+    if (!Number.isFinite(value) || value <= 0) return;
+    await db.runAsync('INSERT OR REPLACE INTO profile (id, height_cm) VALUES (1, ?)', value);
+    setHeightCm(value);
+  }
 
   async function addBodyWeight() {
     const weight = parseFloat(bwInput);
@@ -85,9 +102,10 @@ export default function ProgressScreen() {
     useCallback(() => {
       loadExercises();
       loadBodyWeights();
+      loadProfile();
       setStatusBarStyle('light');
       return () => setStatusBarStyle('dark');
-    }, [loadExercises, loadBodyWeights])
+    }, [loadExercises, loadBodyWeights, loadProfile])
   );
 
   useFocusEffect(
@@ -110,6 +128,37 @@ export default function ProgressScreen() {
     return { current, starting, change: current - starting };
   }, [bodyWeights]);
 
+  const bmi = useMemo(() => {
+    const latestWeight = bodyWeights[bodyWeights.length - 1]?.weight;
+    if (!heightCm || !latestWeight) return null;
+    const heightM = heightCm / 100;
+    const value = latestWeight / (heightM * heightM);
+    return Math.round(value * 10) / 10;
+  }, [heightCm, bodyWeights]);
+
+  const bmiCategory = useMemo(() => {
+    if (bmi == null) return null;
+    if (bmi < 18.5) return { label: 'Underweight', color: '#5eb1f0' };
+    if (bmi < 25) return { label: 'Normal', color: '#4ade80' };
+    if (bmi < 30) return { label: 'Overweight', color: '#f5b942' };
+    return { label: 'Obese', color: RED };
+  }, [bmi]);
+
+  const selectedLabel =
+    selectedId === 'bodyweight' ? 'Body Weight' : exercises.find((ex) => ex.id === selectedId)?.name ?? 'Select an exercise';
+
+  const pickerOptions = useMemo(() => {
+    const all = [{ id: 'bodyweight' as const, name: 'Body Weight' }, ...exercises];
+    const query = pickerSearch.trim().toLowerCase();
+    if (!query) return all;
+    return all.filter((item) => item.name.toLowerCase().includes(query));
+  }, [exercises, pickerSearch]);
+
+  function closePicker() {
+    setPickerVisible(false);
+    setPickerSearch('');
+  }
+
   const chartData = points.map((p) => ({
     value: metric === 'weight' ? p.max_weight : p.volume,
     label: parseSqliteDate(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
@@ -126,42 +175,79 @@ export default function ProgressScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.pillRow}
-        contentContainerStyle={styles.pillRowContent}
-      >
-        <Pressable onPress={() => setSelectedId('bodyweight')}>
-          {selectedId === 'bodyweight' ? (
-            <View style={[styles.pill, styles.pillActive]}>
-              <Ionicons name="scale-outline" size={13} color="#fff" style={styles.pillIcon} />
-              <Text style={styles.pillTextActive}>Body Weight</Text>
-            </View>
-          ) : (
-            <BlurView intensity={30} tint="dark" style={styles.pill}>
-              <Ionicons name="scale-outline" size={13} color="#ccc" style={styles.pillIcon} />
-              <Text style={styles.pillText}>Body Weight</Text>
-            </BlurView>
-          )}
-        </Pressable>
-        {exercises.map((ex) => {
-          const active = ex.id === selectedId;
-          return (
-            <Pressable key={ex.id} onPress={() => setSelectedId(ex.id)}>
-              {active ? (
-                <View style={[styles.pill, styles.pillActive]}>
-                  <Text style={styles.pillTextActive}>{ex.name}</Text>
-                </View>
-              ) : (
-                <BlurView intensity={30} tint="dark" style={styles.pill}>
-                  <Text style={styles.pillText}>{ex.name}</Text>
-                </BlurView>
-              )}
+      <Pressable style={styles.selectorWrap} onPress={() => setPickerVisible(true)}>
+        <BlurView intensity={30} tint="dark" style={styles.selector}>
+          <Ionicons
+            name={selectedId === 'bodyweight' ? 'scale-outline' : 'barbell'}
+            size={16}
+            color="#fff"
+            style={styles.selectorIcon}
+          />
+          <Text style={styles.selectorText}>{selectedLabel}</Text>
+          <Ionicons name="chevron-down" size={18} color="#999" />
+        </BlurView>
+      </Pressable>
+
+      <Modal visible={pickerVisible} animationType="slide" onRequestClose={closePicker}>
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Choose what to view</Text>
+            <Pressable onPress={closePicker} hitSlop={8}>
+              <Ionicons name="close" size={24} color="#fff" />
             </Pressable>
-          );
-        })}
-      </ScrollView>
+          </View>
+
+          <View style={styles.pickerSearchWrap}>
+            <Ionicons name="search" size={16} color="#777" />
+            <TextInput
+              style={styles.pickerSearchInput}
+              placeholder="Search exercises..."
+              placeholderTextColor="#666"
+              value={pickerSearch}
+              onChangeText={setPickerSearch}
+              autoFocus
+            />
+            {pickerSearch.length > 0 ? (
+              <Pressable onPress={() => setPickerSearch('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={16} color="#777" />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <FlatList
+            data={pickerOptions}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={styles.pickerList}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const active = item.id === selectedId;
+              return (
+                <View style={styles.pickerRowWrap}>
+                  <BlurView intensity={30} tint="dark" style={[styles.pickerRow, active && styles.pickerRowActive]}>
+                    <Pressable
+                      style={styles.pickerRowInner}
+                      onPress={() => {
+                        setSelectedId(item.id);
+                        closePicker();
+                      }}
+                    >
+                      <Ionicons
+                        name={item.id === 'bodyweight' ? 'scale-outline' : 'barbell'}
+                        size={16}
+                        color="#fff"
+                        style={styles.selectorIcon}
+                      />
+                      <Text style={styles.pickerRowText}>{item.name}</Text>
+                      {active ? <Ionicons name="checkmark" size={18} color={RED} /> : null}
+                    </Pressable>
+                  </BlurView>
+                </View>
+              );
+            }}
+            ListEmptyComponent={<Text style={styles.empty}>No matches.</Text>}
+          />
+        </View>
+      </Modal>
 
       {selectedId === 'bodyweight' ? (
         <ScrollView contentContainerStyle={styles.bwScrollContent}>
@@ -232,6 +318,43 @@ export default function ProgressScreen() {
                   xAxisColor="rgba(255,255,255,0.1)"
                   hideRules
                 />
+              )}
+            </BlurView>
+          </View>
+
+          <View style={styles.chartCardWrap}>
+            <BlurView intensity={40} tint="dark" style={styles.chartCard}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0.6, y: 1 }}
+                style={styles.chartCardSheen}
+              />
+              <Text style={styles.chartTitle}>BMI Calculator</Text>
+
+              <View style={styles.bwInputRow}>
+                <TextInput
+                  style={styles.bwInput}
+                  placeholder="Height (cm)"
+                  placeholderTextColor="#777"
+                  keyboardType="decimal-pad"
+                  value={heightInput}
+                  onChangeText={setHeightInput}
+                  onEndEditing={saveHeight}
+                />
+              </View>
+
+              {bmi != null && bmiCategory ? (
+                <View style={styles.bmiResultRow}>
+                  <Text style={styles.bmiValue}>{bmi}</Text>
+                  <View style={[styles.bmiPill, { backgroundColor: `${bmiCategory.color}22`, borderColor: `${bmiCategory.color}55` }]}>
+                    <Text style={[styles.bmiPillText, { color: bmiCategory.color }]}>{bmiCategory.label}</Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.emptySubtitle}>
+                  {heightCm == null ? 'Enter your height above' : 'Log a body weight entry'} to calculate BMI.
+                </Text>
               )}
             </BlurView>
           </View>
@@ -383,22 +506,54 @@ const styles = StyleSheet.create({
   },
   bwEntryDate: { color: '#999', fontSize: 13, flex: 1 },
   bwEntryWeight: { color: '#fff', fontSize: 13, fontWeight: '700', marginRight: 16 },
-  pillRow: { maxHeight: 64, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  pillRowContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, flexDirection: 'row' },
-  pill: {
+
+  bmiResultRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  bmiValue: { color: '#fff', fontSize: 32, fontWeight: '800' },
+  bmiPill: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1 },
+  bmiPillText: { fontSize: 13, fontWeight: '700' },
+
+  selectorWrap: { marginHorizontal: 20, marginTop: 16, marginBottom: 4 },
+  selector: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
     overflow: 'hidden',
   },
-  pillIcon: { marginRight: 6 },
-  pillActive: { backgroundColor: RED, borderColor: RED },
-  pillText: { color: '#ccc', fontWeight: '600' },
-  pillTextActive: { color: '#fff', fontWeight: '600' },
+  selectorIcon: { marginRight: 10 },
+  selectorText: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  pickerContainer: { flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: '#0d0d0d' },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  pickerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  pickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  pickerSearchInput: { flex: 1, color: '#fff', fontSize: 15 },
+  pickerList: { paddingBottom: 24 },
+  pickerRowWrap: {
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+  },
+  pickerRow: { backgroundColor: 'rgba(255,255,255,0.05)' },
+  pickerRowActive: { backgroundColor: 'rgba(229,72,77,0.14)' },
+  pickerRowInner: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14 },
+  pickerRowText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#fff' },
 
   chartCardWrap: {
     margin: 20,
