@@ -82,6 +82,19 @@ export default function ProgressScreen() {
     setPhotos(rows);
   }, [db]);
 
+  const photoSections = useMemo(() => {
+    const map = new Map<string, { label: string; items: { photo: ProgressPhoto; index: number }[] }>();
+    photos.forEach((photo, index) => {
+      const d = parseSqliteDate(photo.date);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!map.has(key)) {
+        map.set(key, { label: d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }), items: [] });
+      }
+      map.get(key)!.items.push({ photo, index });
+    });
+    return Array.from(map.values());
+  }, [photos]);
+
   async function savePickedPhoto(uri: string) {
     PHOTOS_DIR.create({ intermediates: true, idempotent: true });
     const destFile = new File(PHOTOS_DIR, `${Date.now()}.jpg`);
@@ -466,21 +479,23 @@ export default function ProgressScreen() {
               <Text style={styles.emptySubtitle}>Add one every month or so to track changes over time.</Text>
             </View>
           ) : (
-            <FlatList
-              data={photos}
-              keyExtractor={(item) => String(item.id)}
-              numColumns={GRID_COLUMNS}
-              contentContainerStyle={styles.photoGrid}
-              columnWrapperStyle={styles.photoGridRow}
-              renderItem={({ item, index }) => (
-                <Pressable onPress={() => setViewerIndex(index)}>
-                  <Image source={{ uri: item.uri }} style={styles.photoThumb} />
-                  <Text style={styles.photoThumbDate}>
-                    {parseSqliteDate(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </Text>
-                </Pressable>
-              )}
-            />
+            <ScrollView contentContainerStyle={styles.photoGrid}>
+              {photoSections.map((section) => (
+                <View key={section.label} style={styles.photoSection}>
+                  <Text style={styles.photoSectionTitle}>{section.label}</Text>
+                  <View style={styles.photoSectionGrid}>
+                    {section.items.map(({ photo, index }) => (
+                      <Pressable key={photo.id} onPress={() => setViewerIndex(index)}>
+                        <Image source={{ uri: photo.uri }} style={styles.photoThumb} />
+                        <Text style={styles.photoThumbDate}>
+                          {parseSqliteDate(photo.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
           )}
 
           <Modal visible={viewerIndex != null} animationType="fade" onRequestClose={() => setViewerIndex(null)}>
@@ -773,7 +788,9 @@ const styles = StyleSheet.create({
   },
   addPhotoButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   photoGrid: { paddingHorizontal: 20, paddingBottom: 40 },
-  photoGridRow: { gap: GRID_GAP, marginBottom: GRID_GAP },
+  photoSection: { marginBottom: 24 },
+  photoSectionTitle: { color: '#999', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 10 },
+  photoSectionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP },
   photoThumb: {
     width: GRID_ITEM_SIZE,
     height: GRID_ITEM_SIZE,
