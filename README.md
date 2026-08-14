@@ -51,6 +51,21 @@ What started as a simple "log a set, see a chart" MVP grew into a full training 
 
 BAKAL runs a custom dark glassmorphism theme end to end: layered blur cards, soft sheens, subtle depth shadows, and the Fredoka display font for a look that's distinctly its own rather than "default React Native." Every screen — Home, Active Workout, History, Progress, Exercise Library — was individually redesigned and polished, not just scaffolded.
 
+<div align="center">
+<table>
+<tr>
+<td><img src="./assets/screenshots/home.png" width="200" alt="Home screen with streak heatmap and routines" /></td>
+<td><img src="./assets/screenshots/active-workout.png" width="200" alt="Active workout logging screen" /></td>
+<td><img src="./assets/screenshots/history.png" width="200" alt="Workout history list" /></td>
+</tr>
+<tr>
+<td><img src="./assets/screenshots/progress.png" width="200" alt="Progress chart for an exercise" /></td>
+<td><img src="./assets/screenshots/library.png" width="200" alt="Exercise library grouped by muscle group" /></td>
+<td></td>
+</tr>
+</table>
+</div>
+
 ## 🛠 Tech Stack
 
 | Layer | Choice |
